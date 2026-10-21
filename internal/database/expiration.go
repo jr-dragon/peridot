@@ -6,6 +6,7 @@ import (
 	"math"
 	"math/rand/v2"
 	"slices"
+	"sync"
 	"time"
 
 	"github.com/jr-dragon/peridot/internal/liberr"
@@ -17,10 +18,12 @@ const (
 	expirationBudget     = 25 * time.Millisecond
 )
 
-// activeExpiration's index is guarded by DB.mu, together with the backend.
+// mu protects the index during concurrent key operations. The database gate
+// excludes those operations while an expiration cycle samples and deletes keys.
 // The dense key slice supports uniform bounded sampling without scanning live
 // or persistent keys. Each index update takes constant time.
 type activeExpiration struct {
+	mu         sync.Mutex
 	baseline   float64
 	dynamic    bool
 	keys       []string
@@ -65,7 +68,7 @@ func (s *DB) expireKey(key string) error {
 		return err
 	}
 	s.delete(key)
-	s.dirty++
+	s.dirty.Add(1)
 	return nil
 }
 
@@ -74,6 +77,8 @@ func (s *DB) trackExpiration(key string, entry storage.Entry) {
 	if e == nil {
 		return
 	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	position, exists := e.positions[key]
 	if entry.ExpiresAt != 0 {
 		if !exists {
@@ -95,6 +100,8 @@ func (s *DB) trackExpiration(key string, entry storage.Entry) {
 // sample performs a partial Fisher-Yates shuffle. Samples contain no duplicate
 // keys; copying the small prefix lets deletion swap entries in the dense index.
 func (e *activeExpiration) sample() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
 	n := min(expirationSampleSize, len(e.keys))
 	for i := range n {
 		j := i + rand.IntN(len(e.keys)-i)

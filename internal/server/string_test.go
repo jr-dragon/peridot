@@ -13,6 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jr-dragon/peridot/internal/data"
+	"github.com/jr-dragon/peridot/internal/database"
+	"github.com/jr-dragon/peridot/internal/persistence"
 	"github.com/jr-dragon/peridot/internal/service/cmd"
 	"github.com/jr-dragon/peridot/internal/storage"
 	"github.com/jr-dragon/peridot/pkg/resp"
@@ -120,6 +123,31 @@ func TestStringStorageFailuresStayInternal(t *testing.T) {
 // REDIS_REFERENCE must name a Redis 8.10.2 executable; no existing server is used.
 func TestStringsAgainstRedis(t *testing.T) {
 	forEachStringStore(t, testStringsAgainstRedis)
+}
+
+func TestSnapshotOnlyStringsAgainstRedis(t *testing.T) {
+	for name, factory := range map[string]func() storage.Backend{
+		"xsync": func() storage.Backend { return storage.NewXsync() },
+		"dlht":  func() storage.Backend { return storage.NewDLHT() },
+	} {
+		t.Run(name, func(t *testing.T) {
+			testStringsAgainstRedis(t, func() storage.Store {
+				config := data.DefaultConfig()
+				config.Dir, config.Save = t.TempDir(), nil
+				p, err := persistence.New(config)
+				if err != nil {
+					t.Fatal(err)
+				}
+				db := database.New(factory(), p, database.WithActiveExpiration(config.HZ, config.DynamicHZ))
+				t.Cleanup(func() {
+					if err := db.Close(); err != nil {
+						t.Error(err)
+					}
+				})
+				return db
+			})
+		})
+	}
 }
 
 func testStringsAgainstRedis(t *testing.T, newStore func() storage.Store) {

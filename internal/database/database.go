@@ -4,8 +4,10 @@ package database
 import (
 	"context"
 	"errors"
+	"hash/maphash"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jr-dragon/peridot/internal/data"
@@ -47,10 +49,14 @@ type concurrentRewriter interface {
 	BeginRewrite(context.Context, map[string]storage.Entry) (func() error, error)
 }
 
-// DB exclusively owns its selected memory backend. When persistence is enabled,
-// its gate orders expiration, append, publication, rewrite, and close.
+// DB exclusively owns its backend. mu excludes key operations from checkpoints,
+// multi-key deletion, expiration cycles, and close. AOF additionally serializes
+// key operations to preserve append/publication order across different keys.
 type DB struct {
 	mu             sync.RWMutex
+	keys           [256]sync.Mutex
+	seed           maphash.Seed
+	ordered        bool
 	store          storage.Backend
 	persistence    Persistence
 	now            func() time.Time
@@ -62,7 +68,7 @@ type DB struct {
 	saving         bool
 	rewritePending bool
 	savePending    bool
-	dirty          uint64
+	dirty          atomic.Uint64
 	lastSave       time.Time
 	rules          []data.SaveRule
 	stop           chan struct{}
@@ -77,7 +83,12 @@ type Option func(*DB)
 func WithClock(now func() time.Time) Option { return func(d *DB) { d.now = now } }
 
 func New(store storage.Backend, persistence Persistence, options ...Option) *DB {
-	d := &DB{store: store, persistence: persistence, now: time.Now}
+	d := &DB{store: store, persistence: persistence, now: time.Now, seed: maphash.MakeSeed(), ordered: persistence != nil}
+	// Unknown persistence implementations retain the conservative global order.
+	// RDB-only engines still participate in checkpoints without serializing keys.
+	if mode, ok := persistence.(interface{ RequiresOrderedMutations() bool }); ok {
+		d.ordered = mode.RequiresOrderedMutations()
+	}
 	for _, option := range options {
 		option(d)
 	}
@@ -106,13 +117,29 @@ func New(store storage.Backend, persistence Persistence, options ...Option) *DB 
 	return d
 }
 
-func (s *DB) lockAccess() func() {
-	if s.persistence == nil && s.expiration == nil {
-		s.mu.RLock()
-		return s.mu.RUnlock
+type keyAccess struct {
+	db  *DB
+	key *sync.Mutex
+}
+
+func (s *DB) lockAccess(key string) keyAccess {
+	if s.ordered {
+		s.mu.Lock()
+		return keyAccess{db: s}
 	}
-	s.mu.Lock()
-	return s.mu.Unlock
+	s.mu.RLock()
+	lock := &s.keys[maphash.String(s.seed, key)%uint64(len(s.keys))]
+	lock.Lock()
+	return keyAccess{db: s, key: lock}
+}
+
+func (a keyAccess) unlock() {
+	if a.key == nil {
+		a.db.mu.Unlock()
+		return
+	}
+	a.key.Unlock()
+	a.db.mu.RUnlock()
 }
 
 func expired(entry storage.Entry, now int64) bool {
@@ -134,8 +161,8 @@ func (s *DB) WriteError() error {
 }
 
 func (s *DB) Get(ctx context.Context, key string) (storage.Entry, bool, error) {
-	unlock := s.lockAccess()
-	defer unlock()
+	access := s.lockAccess(key)
+	defer access.unlock()
 	if s.closed {
 		return storage.Entry{}, false, ErrClosed
 	}
@@ -156,8 +183,8 @@ func (s *DB) Get(ctx context.Context, key string) (storage.Entry, bool, error) {
 }
 
 func (s *DB) Update(ctx context.Context, key string, update storage.UpdateFunc) error {
-	unlock := s.lockAccess()
-	defer unlock()
+	access := s.lockAccess(key)
+	defer access.unlock()
 	if s.closed {
 		return ErrClosed
 	}
@@ -202,10 +229,12 @@ func (s *DB) Update(ctx context.Context, key string, update storage.UpdateFunc) 
 		return err
 	}
 
-	s.dirty++
+	s.dirty.Add(1)
 	if keep {
 		s.store.Put(key, next)
-		s.trackExpiration(key, next)
+		if current.ExpiresAt != 0 || next.ExpiresAt != 0 {
+			s.trackExpiration(key, next)
+		}
 	} else {
 		s.delete(key)
 	}
@@ -389,7 +418,7 @@ func (s *DB) save(ctx context.Context, foreground bool) error {
 		s.mu.Unlock()
 		return err
 	}
-	entries, dirty := s.snapshotLocked(), s.dirty
+	entries, dirty := s.snapshotLocked(), s.dirty.Load()
 	if !foreground {
 		s.mu.Unlock()
 	}
@@ -398,7 +427,7 @@ func (s *DB) save(ctx context.Context, foreground bool) error {
 		s.mu.Lock()
 	}
 	if err == nil {
-		s.dirty -= dirty
+		s.dirty.Store(s.dirty.Load() - dirty)
 		s.lastSave = s.now()
 	}
 	s.mu.Unlock()
@@ -426,14 +455,14 @@ func (s *DB) StartSave(schedule ...bool) error {
 		s.finish(true)
 		return ErrClosed
 	}
-	entries, dirty := s.snapshotLocked(), s.dirty
+	entries, dirty := s.snapshotLocked(), s.dirty.Load()
 	s.mu.Unlock()
 	go func() {
 		defer s.finish(true)
 		err := s.persistence.(snapshotWriter).Save(context.Background(), entries, true)
 		s.mu.Lock()
 		if err == nil {
-			s.dirty -= dirty
+			s.dirty.Store(s.dirty.Load() - dirty)
 			s.lastSave = s.now()
 		}
 		s.mu.Unlock()
@@ -456,7 +485,7 @@ func (s *DB) snapshotLoop() {
 			s.mu.RLock()
 			due := false
 			for _, rule := range s.rules {
-				if s.dirty >= rule.Changes && s.now().Unix()-s.lastSave.Unix() >= rule.Seconds {
+				if s.dirty.Load() >= rule.Changes && s.now().Unix()-s.lastSave.Unix() >= rule.Seconds {
 					due = true
 					break
 				}
@@ -497,7 +526,7 @@ func (s *DB) Close() error {
 	s.closed = true
 	var err error
 	if s.persistence != nil {
-		if len(s.rules) > 0 && s.dirty > 0 {
+		if len(s.rules) > 0 && s.dirty.Load() > 0 {
 			err = s.persistence.(snapshotWriter).Save(context.Background(), s.snapshotLocked(), false)
 		}
 		err = errors.Join(err, s.persistence.Close())
@@ -508,8 +537,8 @@ func (s *DB) Close() error {
 // Read shares Get's read-only persistence policy and supplies an expiration
 // snapshot, without treating a TTL lookup as a write or increasing dirty state.
 func (s *DB) Read(ctx context.Context, key string, read storage.ReadFunc) error {
-	unlock := s.lockAccess()
-	defer unlock()
+	access := s.lockAccess(key)
+	defer access.unlock()
 	if s.closed {
 		return ErrClosed
 	}
@@ -575,7 +604,7 @@ func (s *DB) DeleteKeys(ctx context.Context, keys []string) (int64, error) {
 	}
 	for _, key := range deleted {
 		s.delete(key)
-		s.dirty++
+		s.dirty.Add(1)
 	}
 	return count, nil
 }

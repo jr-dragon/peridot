@@ -15,12 +15,15 @@ database after draining request handlers.
 
 The database maintains a dense slice and key-to-position map containing only
 keys with expiration timestamps. Recovery seeds the index once. Mutations,
-passive expiration, and active expiration update it under the database gate;
+passive expiration, and active expiration update it under its own mutex;
 removal swaps the last element into the removed slot. Index maintenance is O(1),
 with O(N) additional memory for N TTL keys. No per-cycle full-keyspace scan or
 snapshot is needed. Both Xsync and DLHT backends use the same coordinator.
-With active expiration enabled, memory-only mutations also use the database's
-exclusive gate so index and value publication remain atomic.
+Ordinary key operations hold a shared database gate and a per-key lock stripe;
+different keys can proceed concurrently when AOF is disabled. Index updates
+complete before a key operation releases the gate. Non-TTL replacements skip
+index maintenance. An expiration sample holds the exclusive database gate, so
+it observes complete value/index updates and cannot remove a concurrent replacement.
 
 Each cycle samples up to 20 distinct keys uniformly using a partial Fisher-Yates
 shuffle. It rechecks current expiration under the gate, attempts any required AOF

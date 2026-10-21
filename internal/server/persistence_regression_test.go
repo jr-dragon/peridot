@@ -135,6 +135,8 @@ func TestPingSnapshotFailureAgainstRedis(t *testing.T) {
 				{"SET"}, {"SET", "key"}, {"SET", "key", "value", "INVALID"},
 				{"SET", "key", "value", "NX", "XX"}, {"SET", "key", "value", "EX"},
 				{"SET", "key", "value", "PX", "bad"}, {"SET", "key", "value", "EX", "0"},
+				{"EXPIRE", "key"}, {"EXPIRE", "key", "bad"},
+				{"EXPIRE", "key", "100", "INVALID"}, {"EXPIRE", "key", "9223372036854775807"},
 			} {
 				compare(args...)
 			}

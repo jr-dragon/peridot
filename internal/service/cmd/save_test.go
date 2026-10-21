@@ -201,6 +201,11 @@ func TestBackgroundSnapshotFailureAndCommandPriority(t *testing.T) {
 			{set, []string{"SET", "key", "value", "EX"}, misconf},
 			{set, []string{"SET", "key", "value", "PX", "bad"}, misconf},
 			{set, []string{"SET", "key", "value", "EX", "0"}, misconf},
+			{NewExpire(db), []string{"EXPIRE", "key"}, "-ERR wrong number of arguments for 'expire' command\r\n"},
+			{NewExpire(db), []string{"EXPIRE", "key", "1"}, misconf},
+			{NewExpire(db), []string{"EXPIRE", "key", "bad"}, misconf},
+			{NewExpire(db), []string{"EXPIRE", "key", "1", "INVALID"}, misconf},
+			{NewExpire(db), []string{"EXPIRE", "key", "9223372036854775807"}, misconf},
 			{NewGet(db), []string{"GET", "key"}, "$6\r\nbefore\r\n"},
 		} {
 			if got := commandReply(t, tc.command, tc.args...); got != tc.want {

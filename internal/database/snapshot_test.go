@@ -150,14 +150,14 @@ func TestSaveFailureRetainsDirtyStateAndLastSave(t *testing.T) {
 	if err := db.Save(context.Background()); !errors.Is(err, p.fail) {
 		t.Fatal(err)
 	}
-	if db.dirty != 1 || db.LastSave() != before {
+	if db.dirty.Load() != 1 || db.LastSave() != before {
 		t.Fatal("failure advanced checkpoint")
 	}
 	p.fail = nil
 	if err := db.Save(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if db.dirty != 0 {
+	if db.dirty.Load() != 0 {
 		t.Fatal("successful save did not clear captured changes")
 	}
 }

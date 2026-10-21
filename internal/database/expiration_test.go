@@ -83,7 +83,7 @@ func TestExpirationSamplingThreshold(t *testing.T) {
 			if err != nil || hz != 10 || store.loads != tc.loads {
 				t.Fatalf("cycle = %v, %v, loads=%d; want %d", hz, err, store.loads, tc.loads)
 			}
-			if len(store.Snapshot()) != 21-tc.expired || db.dirty != uint64(tc.expired) {
+			if len(store.Snapshot()) != 21-tc.expired || db.dirty.Load() != uint64(tc.expired) {
 				t.Fatal("incorrect deletion count")
 			}
 			assertExpirationIndex(t, db)
@@ -115,7 +115,7 @@ func TestExpirationRepeatsAndSamplesWithoutReplacement(t *testing.T) {
 			if _, err := db.expireCycle(10); err != nil {
 				t.Fatal(err)
 			}
-			if len(backend.Snapshot()) != 0 || db.dirty != 201 {
+			if len(backend.Snapshot()) != 0 || db.dirty.Load() != 201 {
 				t.Fatal("high deletion ratio did not repeat")
 			}
 			assertExpirationIndex(t, db)
@@ -219,7 +219,7 @@ func TestExpirationRecoveryAndDurableFailure(t *testing.T) {
 	if _, err := db.expireCycle(10); !errors.Is(err, failure) {
 		t.Fatal(err)
 	}
-	if _, exists := store.Load("ttl"); !exists || db.dirty != 0 || len(p.deleted) != 0 {
+	if _, exists := store.Load("ttl"); !exists || db.dirty.Load() != 0 || len(p.deleted) != 0 {
 		t.Fatal("failed append published deletion")
 	}
 	assertExpirationIndex(t, db)
@@ -232,8 +232,8 @@ func TestExpirationRecoveryAndDurableFailure(t *testing.T) {
 	if _, err := db.expireCycle(10); err != nil {
 		t.Fatal(err)
 	}
-	if len(p.deleted) != 1 || p.deleted[0] != "ttl" || db.dirty != 1 {
-		t.Fatal("durable expiration missing", p.deleted, db.dirty)
+	if len(p.deleted) != 1 || p.deleted[0] != "ttl" || db.dirty.Load() != 1 {
+		t.Fatal("durable expiration missing", p.deleted, db.dirty.Load())
 	}
 	assertExpirationIndex(t, db)
 }
@@ -456,8 +456,8 @@ func TestActiveExpirationContinuesAfterAOFFailure(t *testing.T) {
 			if _, err := db.expireCycle(10); err != nil {
 				t.Fatal(err)
 			}
-			if len(backend.Snapshot()) != 1 || db.dirty != 45 || len(db.expiration.keys) != 0 {
-				t.Fatalf("expired entries retained: %d, dirty=%d, indexed=%d", len(backend.Snapshot()), db.dirty, len(db.expiration.keys))
+			if len(backend.Snapshot()) != 1 || db.dirty.Load() != 45 || len(db.expiration.keys) != 0 {
+				t.Fatalf("expired entries retained: %d, dirty=%d, indexed=%d", len(backend.Snapshot()), db.dirty.Load(), len(db.expiration.keys))
 			}
 			assertExpirationIndex(t, db)
 			if !errors.Is(db.WriteError(), failure) {

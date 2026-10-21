@@ -13,6 +13,13 @@ of that choice. `internal/database.DB` coordinates mutations and snapshots;
 Wire codecs remain separate from command execution and the memory representation.
 No new dependencies or project-owned CGO code are required.
 
+Ordinary key operations share a database gate and use 256 key lock stripes.
+RDB-only persistence permits different stripes to proceed concurrently; active
+expiration maintains its index under a separate mutex, and dirty accounting is
+atomic. Snapshots, multi-key deletion, expiration samples, and close take the
+exclusive gate. AOF-enabled and unknown persistence implementations retain
+global mutation ordering so append and memory publication cannot be reordered.
+
 The supported dataset is binary-safe string keys and values in database zero,
 including absolute millisecond expiration. Other databases, collection types,
 functions, modules, and module key metadata fail explicitly during import.
@@ -76,7 +83,9 @@ snapshot are removed from the dirty count. A failed save preserves the previous
 snapshot. A background save failure, with active save rules and
 `stop-writes-on-bgsave-error yes`, blocks user writes and PING until a save
 succeeds. A failed foreground SAVE leaves that status unchanged. SET checks
-command arity before write protection, then parses options. Successful same-value
+command arity first. Valid requests check write protection once inside Update;
+option validation failures check write protection before returning the error.
+Thus disk errors retain precedence over invalid options. Successful same-value
 SET operations count toward save thresholds; failed conditions do not. Internal filesystem
 details are logged, not included in command replies.
 

@@ -21,7 +21,7 @@ func TestKeyspaceExpirationIndexAndAppendFailure(t *testing.T) {
 				}
 			}
 			assertExpirationIndex(t, db)
-			before := db.dirty
+			before := db.dirty.Load()
 			if err := db.Read(context.Background(), "a", func(e storage.Entry, exists bool, now int64) {
 				if !exists || now != 1000 || e.ExpiresAt != 2000 {
 					t.Fatal(e, exists, now)
@@ -29,7 +29,7 @@ func TestKeyspaceExpirationIndexAndAppendFailure(t *testing.T) {
 			}); err != nil {
 				t.Fatal(err)
 			}
-			if db.dirty != before {
+			if db.dirty.Load() != before {
 				t.Fatal("read increased dirty count")
 			}
 			failure := errors.New("append failed")
@@ -37,7 +37,7 @@ func TestKeyspaceExpirationIndexAndAppendFailure(t *testing.T) {
 			if _, err := db.DeleteKeys(context.Background(), []string{"a", "b"}); !errors.Is(err, failure) {
 				t.Fatal(err)
 			}
-			if len(backend.Snapshot()) != 2 || db.dirty != before {
+			if len(backend.Snapshot()) != 2 || db.dirty.Load() != before {
 				t.Fatal("failed append published deletion")
 			}
 			assertExpirationIndex(t, db)
@@ -45,7 +45,7 @@ func TestKeyspaceExpirationIndexAndAppendFailure(t *testing.T) {
 			if n, err := db.DeleteKeys(context.Background(), []string{"a", "a", "b", "missing"}); err != nil || n != 2 {
 				t.Fatal(n, err)
 			}
-			if db.dirty != before+2 || len(p.deleted) != 2 {
+			if db.dirty.Load() != before+2 || len(p.deleted) != 2 {
 				t.Fatal("incorrect durable deletion count")
 			}
 			assertExpirationIndex(t, db)

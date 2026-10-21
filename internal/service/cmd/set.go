@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/jr-dragon/peridot/internal/database"
+	"github.com/jr-dragon/peridot/internal/liblog"
 	"github.com/jr-dragon/peridot/internal/storage"
 	"github.com/jr-dragon/peridot/pkg/resp"
 	"github.com/zeebo/xxh3"
@@ -122,16 +123,11 @@ func (c *Set) Exec(ctx context.Context, args []resp.BulkString) (resp.Value, err
 	if len(args) < 3 {
 		return nil, newWrongNumberOfArgumentsError(c)
 	}
-	// Redis validates command arity before disk errors, but disk errors before
-	// SET options. Update still rechecks under the database mutation gate.
-	if status, ok := c.store.(interface{ WriteError() error }); ok {
-		if err := status.WriteError(); err != nil {
-			return nil, persistenceCommandError(err)
-		}
-	}
 	opts, err := parseSetOptions(args)
 	if err != nil {
-		return nil, err
+		// Invalid options must still yield to persistence errors. Valid requests
+		// check status once in Update, under the same gate as the mutation.
+		return nil, writeValidationError(c.store, err)
 	}
 	var reply resp.Value
 	var applied, deleted bool
@@ -197,7 +193,7 @@ func (c *Set) Exec(ctx context.Context, args []resp.BulkString) (resp.Value, err
 		}
 		return nil, fmt.Errorf("set: %w", err)
 	}
-	c.l.DebugContext(ctx, "set completed",
+	liblog.D(ctx, c.l, "set completed",
 		slog.Bool("applied", applied),
 		slog.Bool("expired", deleted),
 		slog.String("condition", opts.condition),

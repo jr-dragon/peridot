@@ -49,24 +49,19 @@ func (c *Expire) Exec(ctx context.Context, args []resp.BulkString) (resp.Value, 
 	if len(args) < 3 {
 		return nil, newWrongNumberOfArgumentsError(c)
 	}
-	if status, ok := c.store.(interface{ WriteError() error }); ok {
-		if err := status.WriteError(); err != nil {
-			return nil, persistenceCommandError(err)
-		}
-	}
 	opts, err := parseExpireOptions(args[3:])
 	if err != nil {
-		return nil, err
+		return nil, writeValidationError(c.store, err)
 	}
 	seconds, err := strconv.ParseInt(args[2].String(), 10, 64)
 	if err != nil || strconv.FormatInt(seconds, 10) != args[2].String() {
-		return nil, NewError(ErrCommand, resp.ERRTYPE_DEFAULT, "value is not an integer or out of range")
+		return nil, writeValidationError(c.store, NewError(ErrCommand, resp.ERRTYPE_DEFAULT, "value is not an integer or out of range"))
 	}
 	invalid := func() error {
 		return NewError(ErrCommand, resp.ERRTYPE_DEFAULT, "invalid expire time in 'expire' command")
 	}
 	if seconds > math.MaxInt64/1000 || seconds < math.MinInt64/1000 {
-		return nil, invalid()
+		return nil, writeValidationError(c.store, invalid())
 	}
 	milliseconds := seconds * 1000
 	var applied int64

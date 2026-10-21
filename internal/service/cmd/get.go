@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/jr-dragon/peridot/internal/liblog"
 	"github.com/jr-dragon/peridot/internal/storage"
 	"github.com/jr-dragon/peridot/pkg/resp"
 )
@@ -29,15 +30,15 @@ func (c *Get) Exec(ctx context.Context, args []resp.BulkString) (resp.Value, err
 		return nil, fmt.Errorf("get: %w", err)
 	}
 	if !exists {
-		c.l.DebugContext(ctx, "value lookup completed", slog.Bool("found", false))
+		liblog.D(ctx, c.l, "value lookup completed", slog.Bool("found", false))
 		return nil, nil
 	}
 	value, ok := entry.Value.(string)
 	if !ok {
-		c.l.DebugContext(ctx, "value lookup rejected", slog.String("reason", "wrong type"))
+		liblog.D(ctx, c.l, "value lookup rejected", slog.String("reason", "wrong type"))
 		return nil, newWrongTypeError()
 	}
-	c.l.DebugContext(ctx, "value lookup completed", slog.Bool("found", true))
+	liblog.D(ctx, c.l, "value lookup completed", slog.Bool("found", true))
 	return resp.NewBulkString(value), nil
 }
 

@@ -99,6 +99,11 @@ func (e *Engine) Restore() map[string]storage.Entry {
 	return state
 }
 func (e *Engine) SnapshotRules() []data.SaveRule { return slices.Clone(e.rules) }
+
+// RequiresOrderedMutations keeps AOF appends and memory publication in one
+// database-wide order. RDB-only snapshots use the exclusive checkpoint gate.
+func (e *Engine) RequiresOrderedMutations() bool { return e.aof != nil }
+
 func (e *Engine) Err() error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
