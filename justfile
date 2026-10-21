@@ -3,3 +3,9 @@ run:
 
 build:
     go build -o ./bin/peridot-server ./cmd/server
+
+generate:
+    go generate ./...
+
+test:
+    go test -v ./...
