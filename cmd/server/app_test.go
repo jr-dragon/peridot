@@ -5,23 +5,55 @@ import (
 	"errors"
 	"io"
 	"net"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/jr-dragon/peridot/internal/data"
+	"github.com/jr-dragon/peridot/internal/persistence/rdb"
 )
 
+func testNewApp(t *testing.T) *App {
+	t.Helper()
+	app, err := NewApp(testConfig(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return app
+}
+
 func TestAppRunContextCancellationDrainsRESP(t *testing.T) {
-	testAppShutdown(t, false, nil)
+	testAppShutdown(t, false, nil, testConfig(t))
 }
 
 func TestAppRunContextCancellationForcesRESPClose(t *testing.T) {
-	testAppShutdown(t, true, nil)
+	testAppShutdown(t, true, nil, testConfig(t))
 }
 
 func TestAppRunHTTPClosePreservesRESPShutdownTimeout(t *testing.T) {
-	testAppShutdown(t, true, func(app *App) error { return app.httpsrv.Close() })
+	testAppShutdown(t, true, func(app *App) error { return app.httpsrv.Close() }, testConfig(t))
 }
 
-func testAppShutdown(t *testing.T, forceClose bool, stopServer func(*App) error) {
+func TestAppAOFShutdownDrainsAndCloses(t *testing.T) {
+	testAppShutdown(t, false, nil, testAOFConfig(t, filepath.Join(t.TempDir(), "drain.aof")))
+}
+
+func TestAppAOFShutdownForcesClose(t *testing.T) {
+	testAppShutdown(t, true, nil, testAOFConfig(t, filepath.Join(t.TempDir(), "forced.aof")))
+}
+
+func TestAppRejectsInvalidAOFBeforeServing(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "bad.aof")
+	if err := os.WriteFile(path, []byte("REDIS0015"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if app, err := NewApp(testAOFConfig(t, path)); app != nil || !errors.Is(err, rdb.ErrFormat) {
+		t.Fatalf("app=%v, error=%v", app, err)
+	}
+}
+
+func testAppShutdown(t *testing.T, forceClose bool, stopServer func(*App) error, config data.Config) {
 	t.Helper()
 	// Reserve an address because RESP keeps its listener private.
 	reservation, err := net.Listen("tcp", "127.0.0.1:0")
@@ -31,7 +63,10 @@ func testAppShutdown(t *testing.T, forceClose bool, stopServer func(*App) error)
 	addr := reservation.Addr().String()
 	reservation.Close()
 
-	app := NewApp()
+	app, err := NewApp(config)
+	if err != nil {
+		t.Fatal(err)
+	}
 	app.respsrv.Addr = addr
 	app.ShutdownTimeout = time.Second
 	if forceClose {
@@ -79,6 +114,29 @@ func testAppShutdown(t *testing.T, forceClose bool, stopServer func(*App) error)
 	if string(reply[:]) != "+PONG\r\n" {
 		t.Fatalf("unexpected PING reply: %q", reply)
 	}
+	if config.AOFPath() != "" {
+		if _, err := io.WriteString(conn, "SET initial durable\r\n"); err != nil {
+			t.Fatal(err)
+		}
+		var ok [5]byte
+		if _, err := io.ReadFull(conn, ok[:]); err != nil || string(ok[:]) != "+OK\r\n" {
+			t.Fatalf("SET reply: %q,%v", ok, err)
+		}
+	}
+	verifyPersistence := func(key, value string) {
+		t.Helper()
+		if config.AOFPath() == "" {
+			return
+		}
+		restarted, err := NewApp(config)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer restarted.database.Close()
+		if e, ok, err := restarted.database.Get(context.Background(), key); err != nil || !ok || e.Value != value {
+			t.Fatalf("persisted %q = %v,%v,%v", key, e, ok, err)
+		}
+	}
 
 	if stopServer != nil {
 		if err := stopServer(app); err != nil {
@@ -99,10 +157,15 @@ func testAppShutdown(t *testing.T, forceClose bool, stopServer func(*App) error)
 		if _, err := conn.Read(reply[:]); !errors.Is(err, io.EOF) {
 			t.Fatalf("RESP connection was not closed: %v", err)
 		}
+		verifyPersistence("initial", "durable")
 		return
 	}
 	// An active stream must survive signal-context cancellation until it drains.
-	if _, err := io.WriteString(conn, "PING hello\r\n"); err != nil {
+	request, want := "PING hello\r\n", "$5\r\nhello\r\n"
+	if config.AOFPath() != "" {
+		request, want = "SET draining completed\r\n"+request, "+OK\r\n"+want
+	}
+	if _, err := io.WriteString(conn, request); err != nil {
 		t.Fatal(err)
 	}
 	if err := conn.(*net.TCPConn).CloseWrite(); err != nil {
@@ -112,7 +175,7 @@ func testAppShutdown(t *testing.T, forceClose bool, stopServer func(*App) error)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(remaining) != "$5\r\nhello\r\n" {
+	if string(remaining) != want {
 		t.Fatalf("lost response during drain: %q", remaining)
 	}
 	select {
@@ -123,10 +186,11 @@ func testAppShutdown(t *testing.T, forceClose bool, stopServer func(*App) error)
 	case <-time.After(3 * time.Second):
 		t.Fatal("App did not return after cancellation")
 	}
+	verifyPersistence("draining", "completed")
 }
 
 func TestAppRunPreservesServingFailures(t *testing.T) {
-	app := NewApp()
+	app := testNewApp(t)
 	app.respsrv.Addr = "127.0.0.1:invalid-port"
 	app.httpsrv.Addr = "127.0.0.1:invalid-port"
 	done := make(chan error, 1)
@@ -146,7 +210,7 @@ func TestAppRunPreservesServingFailures(t *testing.T) {
 }
 
 func TestAppRunAlreadyCanceled(t *testing.T) {
-	app := NewApp()
+	app := testNewApp(t)
 	app.respsrv.Addr = "127.0.0.1:0"
 	app.httpsrv.Addr = "127.0.0.1:0"
 	ctx, cancel := context.WithCancel(context.Background())
@@ -186,7 +250,7 @@ func TestAppRunServerExitTriggersShutdown(t *testing.T) {
 				defer ln.Close()
 				return ln.Addr().String()
 			}
-			app := NewApp()
+			app := testNewApp(t)
 			app.respsrv.Addr = reserveAddress()
 			app.httpsrv.Addr = reserveAddress()
 			app.ShutdownTimeout = time.Second
@@ -252,4 +316,18 @@ func TestAppRunServerExitTriggersShutdown(t *testing.T) {
 			}
 		})
 	}
+}
+
+func testConfig(t *testing.T) data.Config {
+	config := data.DefaultConfig()
+	config.Dir = t.TempDir()
+	config.Bind = []string{"127.0.0.1"}
+	return config
+}
+
+func testAOFConfig(t *testing.T, path string) data.Config {
+	config := testConfig(t)
+	config.AppendOnly = true
+	config.Dir, config.AppendFilename = filepath.Dir(path), filepath.Base(path)
+	return config
 }

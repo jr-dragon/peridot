@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/jr-dragon/peridot/internal/service/cmd"
+	"github.com/jr-dragon/peridot/internal/storage"
 	"github.com/jr-dragon/peridot/pkg/resp"
 )
 
@@ -71,7 +72,7 @@ func TestHandlerPreservesCommandErrorCodeAndCause(t *testing.T) {
 }
 
 func TestHandlerPipelineContinuesAfterCommandErrors(t *testing.T) {
-	h := NewHandler(cmd.NewCommands())
+	h := NewHandler(cmd.NewCommands(storage.NewXsync(), nil))
 	reader := resp.NewCommand(strings.NewReader("PıNG\r\nPING one two\r\nPING\r\n"))
 	for _, tc := range []struct {
 		want string

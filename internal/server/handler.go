@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"slices"
+	"time"
 
+	"github.com/jr-dragon/peridot/internal/client"
 	"github.com/jr-dragon/peridot/internal/service/cmd"
 	"github.com/jr-dragon/peridot/pkg/resp"
 )
@@ -35,6 +38,7 @@ type Handler interface {
 type handler struct {
 	executor map[string]HandlerFunc
 	serve    HandlerFunc
+	l        *slog.Logger
 }
 
 // NewHandler registers commands and panics if names collide after ASCII case
@@ -42,6 +46,7 @@ type handler struct {
 func NewHandler(cmds []cmd.Command, middlewares ...Middleware) Handler {
 	h := handler{
 		executor: make(map[string]HandlerFunc, len(cmds)),
+		l:        slog.Default().With(slog.String("component", "handler")),
 	}
 
 	for _, command := range cmds {
@@ -62,14 +67,35 @@ func NewHandler(cmds []cmd.Command, middlewares ...Middleware) Handler {
 
 func (h *handler) Exec(ctx context.Context, args []resp.BulkString) (resp.Value, error) {
 	if len(args) == 0 {
+		h.l.DebugContext(ctx, "command rejected", slog.String("reason", "empty command"))
 		return nil, cmd.NewUnknownCommandError(args)
 	}
-	f, ok := h.executor[normalizeCommandName(args[0].String())]
+	name := normalizeCommandName(args[0].String())
+	f, ok := h.executor[name]
 	if !ok {
+		// Unknown names and command errors may contain raw request data.
+		h.l.DebugContext(ctx, "command rejected", slog.String("reason", "unknown command"), slog.Int("argument_count", len(args)-1))
 		return nil, cmd.NewUnknownCommandError(args)
 	}
 
-	return f(ctx, args)
+	if !h.l.Enabled(ctx, slog.LevelDebug) {
+		return f(ctx, args)
+	}
+	started := time.Now()
+	value, err := f(ctx, args)
+	outcome := "success"
+	if errors.Is(err, cmd.ErrCommand) {
+		outcome = "command_error"
+	} else if err != nil {
+		outcome = "internal_error"
+	}
+	h.l.DebugContext(ctx, "command completed",
+		slog.String("command", name),
+		slog.Int("argument_count", len(args)-1),
+		slog.String("outcome", outcome),
+		slog.Duration("duration", time.Since(started)),
+	)
+	return value, err
 }
 
 // normalizeCommandName folds ASCII letters without interpreting command bytes
@@ -123,6 +149,9 @@ func (h *handler) ServeRESP(ctx context.Context, rd *resp.Command) (resp.Value, 
 	}
 	if res == nil {
 		res = resp.NullBulkStringValue
+		if session := client.FromContext(ctx); session != nil && session.Protocol == 3 {
+			res = resp.NullValue
+		}
 	}
 
 	return res, nil

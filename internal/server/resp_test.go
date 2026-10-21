@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jr-dragon/peridot/internal/service/cmd"
+	"github.com/jr-dragon/peridot/internal/storage"
 	"github.com/jr-dragon/peridot/pkg/resp"
 )
 
@@ -365,7 +366,7 @@ func TestRESPClosesOversizedUnterminatedHeaders(t *testing.T) {
 		{name: "bulk header", prefix: "*1\r\n$", reason: "too big bulk count string"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, peer := startRESPPipe(t, NewHandler(cmd.NewCommands()))
+			_, peer := startRESPPipe(t, NewHandler(cmd.NewCommands(storage.NewXsync(), nil)))
 			headerStart := strings.LastIndex(tc.prefix, "\n") + 1
 			wire := tc.prefix + strings.Repeat("x", limit+1-(len(tc.prefix)-headerStart))
 			// Keep the connection open without sending a newline. The server
@@ -397,7 +398,7 @@ func TestRESPFlushesRepliesBeforeReadingPartialCommand(t *testing.T) {
 		{name: "bulk terminator", prefix: "*1\r\n$4\r\nPING\r", tail: "\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, peer := startRESPPipe(t, NewHandler(cmd.NewCommands()))
+			_, peer := startRESPPipe(t, NewHandler(cmd.NewCommands(storage.NewXsync(), nil)))
 			// One pipe write guarantees that the partial command is buffered
 			// together with the completed requests.
 			if _, err := io.WriteString(peer, "PING\r\nPING one two\r\n"+tc.prefix); err != nil {
@@ -546,7 +547,7 @@ func TestRESPCompletesErrorRepliesDuringShutdown(t *testing.T) {
 			var releaseOnce sync.Once
 			unblock := func() { releaseOnce.Do(func() { close(release) }) }
 			first := true
-			h := NewHandler(cmd.NewCommands(), func(next HandlerFunc) HandlerFunc {
+			h := NewHandler(cmd.NewCommands(storage.NewXsync(), nil), func(next HandlerFunc) HandlerFunc {
 				return func(ctx context.Context, args []resp.BulkString) (resp.Value, error) {
 					if first {
 						first = false
@@ -610,7 +611,7 @@ func (c *failingReadConn) Read(p []byte) (int, error) { return c.rd.Read(p) }
 func TestRESPReadFailureSendsServerErrorAndCloses(t *testing.T) {
 	for _, prefix := range []string{"", "PING\r\n*1\r\n"} {
 		t.Run(fmt.Sprintf("prefix=%q", prefix), func(t *testing.T) {
-			s := NewRESP("", NewHandler(cmd.NewCommands()))
+			s := NewRESP("", NewHandler(cmd.NewCommands(storage.NewXsync(), nil)))
 			conn, peer := net.Pipe()
 			defer peer.Close()
 			peer.SetDeadline(time.Now().Add(time.Second))

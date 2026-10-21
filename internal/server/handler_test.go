@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/jr-dragon/peridot/internal/service/cmd"
+	"github.com/jr-dragon/peridot/internal/storage"
 	"github.com/jr-dragon/peridot/pkg/resp"
 )
 
@@ -39,7 +40,7 @@ func TestHandlerServeRESP(t *testing.T) {
 		{name: "end of connection", err: io.EOF},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			h := NewHandler(cmd.NewCommands())
+			h := NewHandler(cmd.NewCommands(storage.NewXsync(), nil))
 			value, err := h.ServeRESP(context.Background(), resp.NewCommand(strings.NewReader(tc.wire)))
 			if !errors.Is(err, tc.err) {
 				t.Fatalf("ServeRESP() error = %v, want %v", err, tc.err)
@@ -80,7 +81,7 @@ func TestHandlerMiddlewareOrderAndContext(t *testing.T) {
 			}
 		}
 	}
-	h := NewHandler(cmd.NewCommands(), middleware("outer"), middleware("inner"))
+	h := NewHandler(cmd.NewCommands(storage.NewXsync(), nil), middleware("outer"), middleware("inner"))
 	value, err := h.ServeRESP(ctx, resp.NewCommand(strings.NewReader("PING\r\n")))
 	if err != nil || string(value.Marshal()) != "+PONG\r\n" {
 		t.Fatalf("ServeRESP() = %v, %v", value, err)

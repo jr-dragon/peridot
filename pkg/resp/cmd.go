@@ -8,11 +8,8 @@ import (
 )
 
 const (
-	// cmdArgsCacheCount is defined as 8 because the "SET" redis
-	// command limits in 8 arguments.
-	//
-	// For variadic commands (eg. "MSET", "LPUSH", ...), it should
-	// alllocs by make([]BulkString, 0, length).
+	// cmdArgsCacheCount covers common requests without allocating an argument
+	// slice. Longer requests, including SET with repeated options, allocate.
 	cmdArgsCacheCount = 8
 )
 

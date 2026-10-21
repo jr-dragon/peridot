@@ -4,9 +4,29 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"syscall"
 
+	"github.com/jr-dragon/peridot/internal/database"
 	"github.com/jr-dragon/peridot/pkg/resp"
 )
+
+func persistenceCommandError(err error) error {
+	if errors.Is(err, database.ErrSnapshotFailed) {
+		return NewError(err, "MISCONF", "Redis is configured to save RDB snapshots, but it's currently unable to persist to disk. Commands that may modify the data set are disabled, because this instance is configured to report errors during writes if RDB snapshotting fails (stop-writes-on-bgsave-error option). Please check the Redis logs for details about the RDB error.")
+	}
+	if errors.Is(err, database.ErrAOFFailed) {
+		// Expose only the OS error description, never filenames or wrapped
+		// implementation details. Redis formats this using strerror(errno).
+		message := "Input/output error"
+		var errno syscall.Errno
+		if errors.As(err, &errno) && errno != 0 {
+			message = errno.Error()
+			message = strings.ToUpper(message[:1]) + message[1:]
+		}
+		return NewError(err, "MISCONF", "Errors writing to the AOF file: "+message)
+	}
+	return err
+}
 
 var (
 	ErrCommand    = errors.New("cmd")

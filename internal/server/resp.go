@@ -10,6 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/jr-dragon/peridot/internal/client"
 	"github.com/jr-dragon/peridot/internal/liberr"
 	"github.com/jr-dragon/peridot/pkg/resp"
 )
@@ -21,10 +22,14 @@ var (
 
 type RESP struct {
 	Addr string
+	// AdditionalAddresses are served by the same handler and client ID sequence.
+	// A leading '-' allows an unavailable local address to be skipped.
+	AdditionalAddresses []string
 
 	handler Handler
 
 	inShutdown atomic.Bool
+	nextID     atomic.Uint64
 
 	lnmu sync.Mutex
 	ln   net.Listener
@@ -55,8 +60,7 @@ func (s *RESP) ListenAndServe(ctx context.Context) error {
 		return ErrServerClosed
 	}
 
-	var lncfg net.ListenConfig
-	ln, err := lncfg.Listen(ctx, "tcp", s.Addr)
+	ln, err := listenTCPAddresses(ctx, append([]string{s.Addr}, s.AdditionalAddresses...))
 	if err != nil {
 		return err
 	}
@@ -244,8 +248,9 @@ func (s *RESP) serve(conn net.Conn) {
 	}
 
 	cmd := resp.NewCommand(rw.Reader)
+	ctx := client.WithSession(context.Background(), &client.Session{ID: s.nextID.Add(1), Protocol: 2})
 	for {
-		ret, err := s.handler.ServeRESP(context.Background(), cmd)
+		ret, err := s.handler.ServeRESP(ctx, cmd)
 		if err == io.EOF {
 			flush()
 			return

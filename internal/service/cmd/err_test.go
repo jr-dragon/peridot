@@ -3,9 +3,12 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"os"
 	"strings"
+	"syscall"
 	"testing"
 
+	"github.com/jr-dragon/peridot/internal/database"
 	"github.com/jr-dragon/peridot/pkg/resp"
 )
 
@@ -94,5 +97,29 @@ func TestUnknownCommandErrorRedis8102(t *testing.T) {
 				t.Fatalf("Error() = %q, want %q", err.Error(), want)
 			}
 		})
+	}
+}
+
+func TestAOFCommandErrorPreservesCauseAndHidesDetails(t *testing.T) {
+	for _, tc := range []struct {
+		cause   error
+		message string
+	}{
+		{&os.PathError{Op: "write", Path: "secret.aof", Err: syscall.ENOSPC}, "No space left on device"},
+		{&os.PathError{Op: "sync", Path: "secret.aof", Err: syscall.EIO}, "Input/output error"},
+		{errors.New("secret internal failure\r\n"), "Input/output error"},
+	} {
+		err := persistenceCommandError(errors.Join(database.ErrAOFFailed, tc.cause))
+		if !errors.Is(err, ErrCommand) || !errors.Is(err, tc.cause) || !errors.Is(err, database.ErrAOFFailed) {
+			t.Fatalf("lost error identity: %v", err)
+		}
+		var value resp.Value
+		if !errors.As(err, &value) {
+			t.Fatal("missing wire error")
+		}
+		want := "-MISCONF Errors writing to the AOF file: " + tc.message + "\r\n"
+		if got := string(value.Marshal()); got != want {
+			t.Fatalf("wire error = %q; want %q", got, want)
+		}
 	}
 }

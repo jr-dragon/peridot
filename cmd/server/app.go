@@ -12,6 +12,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jr-dragon/peridot/internal/data"
+	"github.com/jr-dragon/peridot/internal/database"
 	"github.com/jr-dragon/peridot/internal/server"
 	"golang.org/x/sync/errgroup"
 )
@@ -23,10 +25,19 @@ type App struct {
 	// A non-positive value uses the default of ten seconds.
 	ShutdownTimeout time.Duration
 
-	httpsrv *http.Server
-	respsrv *server.RESP
+	httpsrv  *http.Server
+	respsrv  *server.RESP
+	database *database.DB
 
 	l *slog.Logger
+}
+
+// NewApp validates listener configuration before opening persistent state.
+func NewApp(config data.Config) (*App, error) {
+	if config.Port == 0 || len(config.Bind) == 0 {
+		return nil, errors.New("no RESP listener configured: port 0 or empty bind disables TCP; Unix sockets and TLS are not implemented")
+	}
+	return initializeApp(config)
 }
 
 func (app *App) Run(ctx context.Context) error {
@@ -115,5 +126,12 @@ func (app *App) Run(ctx context.Context) error {
 	// Both servers shut down concurrently. Wait for serving and shutdown work,
 	// preserving every error rather than only the first returned by Wait.
 	_ = g.Wait()
-	return errors.Join(respErr, httpErr, respShutdownErr, httpShutdownErr)
+	// Forced socket closure does not itself wait for handlers to finish. Wait
+	// before closing persistence so an in-flight mutation can complete safely.
+	drainErr := app.respsrv.Shutdown(context.Background())
+	var persistenceErr error
+	if app.database != nil {
+		persistenceErr = app.database.Close()
+	}
+	return errors.Join(respErr, httpErr, respShutdownErr, httpShutdownErr, drainErr, persistenceErr)
 }

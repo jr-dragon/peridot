@@ -3,27 +3,40 @@
 package main
 
 import (
+	"github.com/jr-dragon/peridot/internal/data"
+	"github.com/jr-dragon/peridot/internal/database"
+	"github.com/jr-dragon/peridot/internal/persistence"
 	"github.com/jr-dragon/peridot/internal/server"
 	"github.com/jr-dragon/peridot/internal/service/cmd"
+	"github.com/jr-dragon/peridot/internal/storage"
 	"github.com/mazrean/kessoku"
 	"log/slog"
 	"net/http"
 )
 
-func NewApp() *App {
-	server0 := kessoku.Provide(func() *http.Server {
-		return &http.Server{Addr: "localhost:6060"}
-	}).Fn()()
+func initializeApp(config data.Config) (*App, error) {
 	logger := kessoku.Provide(slog.Default).Fn()()
-	val := kessoku.Provide(cmd.NewCommands).Fn()()
+	backend := kessoku.Provide(storage.New).Fn()()
+	server0 := kessoku.Provide(func(config data.Config) *http.Server {
+		return &http.Server{Addr: config.Extra.PprofAddress}
+	}).Fn()(config)
+	var err error
+	persistence0, err := kessoku.Provide(persistence.New).Fn()(config)
+	if err != nil {
+		var zero *App
+		return zero, err
+	}
+	val := kessoku.Provide(func(config data.Config) []database.Option {
+		return []database.Option{database.WithActiveExpiration(config.HZ, config.DynamicHZ)}
+	}).Fn()(config)
+	db := kessoku.Provide(database.New).Fn()(backend, persistence0, val...)
+	val0 := kessoku.Provide(cmd.NewCommandsFromConfig).Fn()(config, db)
 	handler := kessoku.Provide(func(cmds []cmd.Command) server.Handler {
 		return server.NewHandler(cmds)
-	}).Fn()(val)
-	resp := kessoku.Provide(func(h server.Handler) *server.RESP {
-		return server.NewRESP(":6379", h)
-	}).Fn()(handler)
-	app := kessoku.Provide(func(httpsrv *http.Server, respsrv *server.RESP, l *slog.Logger) *App {
-		return &App{ShutdownTimeout: shutdownTimeout, httpsrv: httpsrv, respsrv: respsrv, l: l.With(slog.String("component", "app"))}
-	}).Fn()(server0, resp, logger)
-	return app
+	}).Fn()(val0)
+	resp := kessoku.Provide(newRESP).Fn()(handler, config)
+	app := kessoku.Provide(func(httpsrv *http.Server, respsrv *server.RESP, l *slog.Logger, db *database.DB) *App {
+		return &App{ShutdownTimeout: shutdownTimeout, httpsrv: httpsrv, respsrv: respsrv, database: db, l: l.With(slog.String("component", "app"))}
+	}).Fn()(server0, resp, logger, db)
+	return app, nil
 }

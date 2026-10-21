@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/jr-dragon/peridot/internal/service/cmd"
+	"github.com/jr-dragon/peridot/internal/storage"
 	"github.com/jr-dragon/peridot/pkg/resp"
 )
 
@@ -30,7 +31,7 @@ func TestRESPRedisProtocolCompatibility(t *testing.T) {
 		{name: "unbalanced quotes", wire: "PING \"hello\r\n", want: "-ERR Protocol error: unbalanced quotes in request\r\n", fatal: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			_, peer := startRESPPipe(t, NewHandler(cmd.NewCommands()))
+			_, peer := startRESPPipe(t, NewHandler(cmd.NewCommands(storage.NewXsync(), nil)))
 			// A fatal error must prevent execution of the following pipelined PING.
 			if _, err := io.WriteString(peer, tc.wire+"PING\r\n"); err != nil {
 				t.Fatal(err)
@@ -59,7 +60,7 @@ func TestRESPRedisProtocolCompatibility(t *testing.T) {
 }
 
 func TestHandlerPreservesProtocolErrorReason(t *testing.T) {
-	h := NewHandler(cmd.NewCommands())
+	h := NewHandler(cmd.NewCommands(storage.NewXsync(), nil))
 	value, err := h.ServeRESP(context.Background(), resp.NewCommand(strings.NewReader("*1\r\n+PING\r\n")))
 	var protocolErr *resp.ProtocolError
 	if !errors.Is(err, ErrClientFatal) || !errors.Is(err, resp.ErrProtocol) || !errors.As(err, &protocolErr) || protocolErr.Reason != "expected '$', got '+'" {

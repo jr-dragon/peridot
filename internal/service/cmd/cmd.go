@@ -3,6 +3,9 @@ package cmd
 import (
 	"context"
 
+	"github.com/jr-dragon/peridot/internal/data"
+	"github.com/jr-dragon/peridot/internal/database"
+	"github.com/jr-dragon/peridot/internal/storage"
 	"github.com/jr-dragon/peridot/pkg/resp"
 )
 
@@ -18,8 +21,23 @@ type Command interface {
 	Exec(context.Context, []resp.BulkString) (resp.Value, error)
 }
 
-func NewCommands() []Command {
+// NewCommandsFromConfig constructs the application's configured command set.
+func NewCommandsFromConfig(_ data.Config, db *database.DB) []Command {
+	return append(NewCommands(db, db), &Save{db}, &BGSave{db}, &LastSave{db})
+}
+
+func NewCommands(store storage.Store, rewriter AOFRewriter) []Command {
+	status, _ := store.(interface{ WriteError() error })
 	return []Command{
-		&Ping{},
+		&Ping{writeStatus: status},
+		&Hello{},
+		NewGet(store),
+		NewSet(store),
+		&Select{},
+		NewDel(store),
+		NewTTL(store),
+		NewExpire(store),
+		NewDigest(store),
+		&BGRewriteAOF{rewriter: rewriter},
 	}
 }
