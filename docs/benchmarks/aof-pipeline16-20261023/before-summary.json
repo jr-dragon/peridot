@@ -1,0 +1,178 @@
+[
+  {
+    "engine": "peridot-before",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "GET",
+    "rps": 833333.31,
+    "avg_latency_ms": 0.921,
+    "p50_latency_ms": 0.991,
+    "p99_latency_ms": 1.199,
+    "max_latency_ms": 1.335
+  },
+  {
+    "engine": "peridot-before",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 9629.27,
+    "avg_latency_ms": 81.989,
+    "p50_latency_ms": 83.967,
+    "p99_latency_ms": 99.071,
+    "max_latency_ms": 106.239
+  },
+  {
+    "engine": "peridot-before",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "GET",
+    "rps": 1297016.88,
+    "avg_latency_ms": 0.356,
+    "p50_latency_ms": 0.319,
+    "p99_latency_ms": 1.055,
+    "max_latency_ms": 8.703
+  },
+  {
+    "engine": "peridot-before",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 417014.19,
+    "avg_latency_ms": 1.896,
+    "p50_latency_ms": 1.847,
+    "p99_latency_ms": 3.287,
+    "max_latency_ms": 12.959
+  },
+  {
+    "engine": "peridot-before",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "GET",
+    "rps": 1356852.12,
+    "avg_latency_ms": 0.326,
+    "p50_latency_ms": 0.319,
+    "p99_latency_ms": 0.687,
+    "max_latency_ms": 2.031
+  },
+  {
+    "engine": "peridot-before",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 420344.69,
+    "avg_latency_ms": 1.882,
+    "p50_latency_ms": 1.815,
+    "p99_latency_ms": 3.199,
+    "max_latency_ms": 6.863
+  },
+  {
+    "engine": "peridot-before",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "GET",
+    "rps": 1338688.12,
+    "avg_latency_ms": 0.335,
+    "p50_latency_ms": 0.319,
+    "p99_latency_ms": 0.735,
+    "max_latency_ms": 2.063
+  },
+  {
+    "engine": "peridot-before",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 1329787.25,
+    "avg_latency_ms": 0.41,
+    "p50_latency_ms": 0.319,
+    "p99_latency_ms": 2.087,
+    "max_latency_ms": 3.815
+  },
+  {
+    "engine": "redis",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "GET",
+    "rps": 909090.94,
+    "avg_latency_ms": 0.817,
+    "p50_latency_ms": 0.903,
+    "p99_latency_ms": 1.103,
+    "max_latency_ms": 1.247
+  },
+  {
+    "engine": "redis",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 121212.12,
+    "avg_latency_ms": 6.445,
+    "p50_latency_ms": 6.295,
+    "p99_latency_ms": 10.999,
+    "max_latency_ms": 14.807
+  },
+  {
+    "engine": "redis",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "GET",
+    "rps": 1228501.25,
+    "avg_latency_ms": 0.555,
+    "p50_latency_ms": 0.543,
+    "p99_latency_ms": 0.855,
+    "max_latency_ms": 2.207
+  },
+  {
+    "engine": "redis",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 694444.44,
+    "avg_latency_ms": 1.063,
+    "p50_latency_ms": 1.055,
+    "p99_latency_ms": 1.487,
+    "max_latency_ms": 2.799
+  },
+  {
+    "engine": "redis",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "GET",
+    "rps": 1245330.0,
+    "avg_latency_ms": 0.548,
+    "p50_latency_ms": 0.543,
+    "p99_latency_ms": 0.871,
+    "max_latency_ms": 1.367
+  },
+  {
+    "engine": "redis",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 661375.69,
+    "avg_latency_ms": 1.113,
+    "p50_latency_ms": 1.087,
+    "p99_latency_ms": 1.647,
+    "max_latency_ms": 5.415
+  },
+  {
+    "engine": "redis",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "GET",
+    "rps": 1261034.12,
+    "avg_latency_ms": 0.538,
+    "p50_latency_ms": 0.527,
+    "p99_latency_ms": 0.831,
+    "max_latency_ms": 1.295
+  },
+  {
+    "engine": "redis",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 1028806.56,
+    "avg_latency_ms": 0.685,
+    "p50_latency_ms": 0.679,
+    "p99_latency_ms": 1.023,
+    "max_latency_ms": 2.375
+  }
+]

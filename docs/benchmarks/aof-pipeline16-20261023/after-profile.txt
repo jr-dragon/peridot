@@ -1,0 +1,28 @@
+File: peridot-after
+Type: cpu
+Time: 2026-10-23 14:01:01 CST
+Duration: 5.10s, Total samples = 28.18s (552.40%)
+Showing nodes accounting for 24.73s, 87.76% of 28.18s total
+Dropped 228 nodes (cum <= 0.14s)
+Showing top 20 nodes out of 114
+      flat  flat%   sum%        cum   cum%
+    10.19s 36.16% 36.16%     10.19s 36.16%  syscall.rawsyscalln
+     5.47s 19.41% 55.57%      5.47s 19.41%  runtime.usleep
+     3.59s 12.74% 68.31%      3.59s 12.74%  runtime.kevent
+     2.70s  9.58% 77.89%      2.70s  9.58%  runtime.pthread_cond_wait
+     1.17s  4.15% 82.04%      1.17s  4.15%  runtime.pthread_cond_signal
+     0.28s  0.99% 83.04%      0.28s  0.99%  sync/atomic.(*Int32).Add (inline)
+     0.19s  0.67% 83.71%      0.19s  0.67%  runtime.madvise
+     0.18s  0.64% 84.35%      0.91s  3.23%  internal/sync.(*Mutex).Lock (inline)
+     0.12s  0.43% 84.78%      0.18s  0.64%  runtime.casgstatus
+     0.11s  0.39% 85.17%      4.37s 15.51%  github.com/jr-dragon/peridot/internal/service/cmd.(*Set).Exec
+     0.11s  0.39% 85.56%      1.80s  6.39%  internal/sync.(*Mutex).Unlock (inline)
+     0.09s  0.32% 85.88%      2.58s  9.16%  runtime.runqgrab
+     0.08s  0.28% 86.16%      4.17s 14.80%  runtime.lock2
+     0.07s  0.25% 86.41%      0.34s  1.21%  github.com/jr-dragon/peridot/pkg/resp.(*Reader).readLine
+     0.07s  0.25% 86.66%      0.73s  2.59%  internal/sync.(*Mutex).lockSlow
+     0.07s  0.25% 86.91%      0.90s  3.19%  runtime.semacquire1
+     0.06s  0.21% 87.12%      2.34s  8.30%  github.com/jr-dragon/peridot/internal/persistence.(*AOF).submit
+     0.06s  0.21% 87.33%      0.50s  1.77%  runtime.mallocgc
+     0.06s  0.21% 87.54%      3.52s 12.49%  runtime.netpoll
+     0.06s  0.21% 87.76%      0.34s  1.21%  sync.(*WaitGroup).Add

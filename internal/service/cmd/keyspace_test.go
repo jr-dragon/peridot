@@ -35,7 +35,7 @@ func TestSelectAlwaysRejected(t *testing.T) {
 }
 
 func TestKeyspaceArity(t *testing.T) {
-	store := storage.New()
+	store := storage.NewXsync()
 	for _, c := range []Command{&Select{}, NewDel(store), NewTTL(store), NewExpire(store), NewDigest(store)} {
 		for _, args := range [][]string{{c.Name()}, {c.Name(), "key", "1", "extra"}} {
 			if len(args) > 1 && (c.Name() == "DEL" || c.Name() == "EXPIRE") {
@@ -49,7 +49,7 @@ func TestKeyspaceArity(t *testing.T) {
 }
 
 func TestKeyspaceCommands(t *testing.T) {
-	forEachKeyspaceStore(t, func(t *testing.T, newStore func() storage.Store) {
+	forEachKeyspaceStore(t, func(t *testing.T, newStore func() storage.KeyStore) {
 		store := newStore()
 		seed(t, store, "binary\x00\xff", storage.Entry{Value: "Hello world"})
 		seed(t, store, "other", storage.Entry{Value: 42})
@@ -77,7 +77,7 @@ func TestKeyspaceCommands(t *testing.T) {
 
 func TestKeyspaceExpirationSnapshot(t *testing.T) {
 	const now = int64(1700000000000)
-	for _, backend := range []storage.Backend{storage.NewXsync(), storage.NewDLHT()} {
+	for _, backend := range []storage.Backend{storage.NewXsync()} {
 		t.Run(fmt.Sprintf("%T", backend), func(t *testing.T) {
 			p := &keyspacePersistence{}
 			db := database.New(backend, p, database.WithClock(func() time.Time { return time.UnixMilli(now) }))
@@ -159,7 +159,7 @@ func TestKeyspacePersistenceFailures(t *testing.T) {
 }
 
 func TestKeyspaceConcurrentConditions(t *testing.T) {
-	forEachKeyspaceStore(t, func(t *testing.T, newStore func() storage.Store) {
+	forEachKeyspaceStore(t, func(t *testing.T, newStore func() storage.KeyStore) {
 		store := newStore()
 		seed(t, store, "key", storage.Entry{Value: "value"})
 		c := NewExpire(store)
@@ -195,13 +195,13 @@ func TestKeyspaceConcurrentConditions(t *testing.T) {
 	})
 }
 
-func forEachKeyspaceStore(t *testing.T, run func(*testing.T, func() storage.Store)) {
+func forEachKeyspaceStore(t *testing.T, run func(*testing.T, func() storage.KeyStore)) {
 	t.Helper()
 	forEachStringStore(t, run)
 	for _, durable := range []bool{false, true} {
-		for name, factory := range map[string]func() storage.Backend{"xsync": func() storage.Backend { return storage.NewXsync() }, "dlht": func() storage.Backend { return storage.NewDLHT() }} {
+		for name, factory := range map[string]func() storage.Backend{"xsync": func() storage.Backend { return storage.NewXsync() }} {
 			t.Run(fmt.Sprintf("database-%s-durable-%t", name, durable), func(t *testing.T) {
-				run(t, func() storage.Store {
+				run(t, func() storage.KeyStore {
 					var p database.Persistence
 					if durable {
 						p = &keyspacePersistence{}
@@ -216,7 +216,7 @@ func forEachKeyspaceStore(t *testing.T, run func(*testing.T, func() storage.Stor
 }
 
 func TestExpireValidation(t *testing.T) {
-	c := NewExpire(storage.New())
+	c := NewExpire(storage.NewXsync())
 	for _, tc := range []struct {
 		args    []string
 		message string

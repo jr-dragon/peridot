@@ -8,10 +8,10 @@ import (
 	"github.com/jr-dragon/peridot/pkg/resp"
 )
 
-type TTL struct{ store storage.Store }
+type TTL struct{ store storage.KeyReader }
 
-func NewTTL(store storage.Store) *TTL { return &TTL{store: store} }
-func (*TTL) Name() string             { return "TTL" }
+func NewTTL(store storage.KeyReader) *TTL { return &TTL{store: store} }
+func (*TTL) Name() string                 { return "TTL" }
 func (c *TTL) Exec(ctx context.Context, args []resp.BulkString) (resp.Value, error) {
 	if len(args) != 2 {
 		return nil, newWrongNumberOfArgumentsError(c)

@@ -25,22 +25,22 @@ type aofDatabase struct {
 	now func() time.Time
 }
 
-func openAOFDatabase(newStore func() storage.Backend, path string) (*aofDatabase, error) {
+func openAOFDatabase(path string) (*aofDatabase, error) {
 	p, err := OpenAOF(path)
 	if err != nil {
 		return nil, err
 	}
 	s := &aofDatabase{AOF: p, now: time.Now}
-	s.DB = database.New(newStore(), p, database.WithClock(func() time.Time { return s.now() }))
+	s.DB = database.New(storage.New(), p, database.WithClock(func() time.Time { return s.now() }))
 	return s, nil
 }
 
 func (s *aofDatabase) Close() error                      { return s.DB.Close() }
 func (s *aofDatabase) Rewrite(ctx context.Context) error { return s.DB.Rewrite(ctx) }
 
-func testAOF(t *testing.T, newStore func() storage.Backend) *aofDatabase {
+func testAOF(t *testing.T) *aofDatabase {
 	t.Helper()
-	s, err := openAOFDatabase(newStore, filepath.Join(t.TempDir(), "appendonly.aof"))
+	s, err := openAOFDatabase(filepath.Join(t.TempDir(), "appendonly.aof"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,8 +68,8 @@ func readAOF(t *testing.T, path string) []byte {
 	return b
 }
 
-func testAOFAppendRewriteAndRestart(t *testing.T, newStore func() storage.Backend) {
-	s := testAOF(t, newStore)
+func TestAOFAppendRewriteAndRestart(t *testing.T) {
+	s := testAOF(t)
 	s.now = func() time.Time { return time.UnixMilli(1000) }
 	key, value := "key\x00\xff", "value\r\n\x00\xff"
 	putAOF(t, s, key, Entry{Value: "old"})
@@ -98,7 +98,7 @@ func testAOFAppendRewriteAndRestart(t *testing.T, newStore func() storage.Backen
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
-	restored, err := openAOFDatabase(newStore, s.path)
+	restored, err := openAOFDatabase(s.path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -116,8 +116,8 @@ func testAOFAppendRewriteAndRestart(t *testing.T, newStore func() storage.Backen
 	}
 }
 
-func testAOFNoOpErrorsAndCancellation(t *testing.T, newStore func() storage.Backend) {
-	s := testAOF(t, newStore)
+func TestAOFNoOpErrorsAndCancellation(t *testing.T) {
+	s := testAOF(t)
 	putAOF(t, s, "key", Entry{Value: "old"})
 	before := readAOF(t, s.path)
 	cause := errors.New("abort")
@@ -180,10 +180,10 @@ func (f *failingAppend) Sync() error {
 	return f.appendFile.Sync()
 }
 
-func testAOFFailurePreventsPublicationAndFurtherWrites(t *testing.T, newStore func() storage.Backend) {
+func TestAOFFailurePreventsPublicationAndFurtherWrites(t *testing.T) {
 	for _, mode := range []string{"write", "short", "sync"} {
 		t.Run(mode, func(t *testing.T) {
-			s := testAOF(t, newStore)
+			s := testAOF(t)
 			putAOF(t, s, "key", Entry{Value: "old"})
 			original := s.file
 			cause := errors.New("disk failure")
@@ -225,14 +225,14 @@ func testAOFFailurePreventsPublicationAndFurtherWrites(t *testing.T, newStore fu
 	}
 }
 
-func testAOFLoadFailureDoesNotModifyInputOrKeepLock(t *testing.T, newStore func() storage.Backend) {
+func TestAOFLoadFailureDoesNotModifyInputOrKeepLock(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "bad.aof")
 	input := append(aof.Encode("SET", "key", "old"), []byte("*1\r\n$3\r\nSE")...)
 	if err := os.WriteFile(path, input, 0600); err != nil {
 		t.Fatal(err)
 	}
 	for range 2 {
-		if s, err := openAOFDatabase(newStore, path); !errors.Is(err, aof.ErrFormat) || s != nil {
+		if s, err := openAOFDatabase(path); !errors.Is(err, aof.ErrFormat) || s != nil {
 			t.Fatalf("open=%v,%v", s, err)
 		}
 	}
@@ -242,17 +242,17 @@ func testAOFLoadFailureDoesNotModifyInputOrKeepLock(t *testing.T, newStore func(
 	if err := os.WriteFile(path, aof.Encode("SET", "key", "new"), 0600); err != nil {
 		t.Fatal(err)
 	}
-	s, err := openAOFDatabase(newStore, path)
+	s, err := openAOFDatabase(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	s.Close()
 }
 
-func testAOFExclusiveOwnershipAcrossRewrite(t *testing.T, newStore func() storage.Backend) {
-	s := testAOF(t, newStore)
+func TestAOFExclusiveOwnershipAcrossRewrite(t *testing.T) {
+	s := testAOF(t)
 	for range 2 {
-		if other, err := openAOFDatabase(newStore, s.path); err == nil {
+		if other, err := openAOFDatabase(s.path); err == nil {
 			other.Close()
 			t.Fatal("accepted second writer")
 		}
@@ -271,7 +271,7 @@ func testAOFExclusiveOwnershipAcrossRewrite(t *testing.T, newStore func() storag
 	}
 }
 
-func testAOFSymlinkOwnershipRewriteAndRestart(t *testing.T, newStore func() storage.Backend) {
+func TestAOFSymlinkOwnershipRewriteAndRestart(t *testing.T) {
 	for _, directoryLink := range []bool{false, true} {
 		for _, openAlias := range []bool{false, true} {
 			t.Run(fmt.Sprintf("directory=%v/owner-alias=%v", directoryLink, openAlias), func(t *testing.T) {
@@ -304,14 +304,14 @@ func testAOFSymlinkOwnershipRewriteAndRestart(t *testing.T, newStore func() stor
 				if openAlias {
 					ownerPath = alias
 				}
-				s, err := openAOFDatabase(newStore, ownerPath)
+				s, err := openAOFDatabase(ownerPath)
 				if err != nil {
 					t.Fatal(err)
 				}
 				defer s.Close()
 				for _, phase := range []string{"before", "after"} {
 					for _, candidate := range []string{path, alias} {
-						if other, err := openAOFDatabase(newStore, candidate); err == nil {
+						if other, err := openAOFDatabase(candidate); err == nil {
 							other.Close()
 							t.Fatalf("accepted second writer through %s %s rewrite", candidate, phase)
 						}
@@ -330,16 +330,16 @@ func testAOFSymlinkOwnershipRewriteAndRestart(t *testing.T, newStore func() stor
 					t.Fatal(err)
 				}
 				for _, candidate := range []string{path, alias} {
-					assertAOFConfirmedEntries(t, newStore, candidate, "before", "after")
+					assertAOFConfirmedEntries(t, candidate, "before", "after")
 				}
 			})
 		}
 	}
 }
 
-func assertAOFConfirmedEntries(t *testing.T, newStore func() storage.Backend, path string, keys ...string) {
+func assertAOFConfirmedEntries(t *testing.T, path string, keys ...string) {
 	t.Helper()
-	s, err := openAOFDatabase(newStore, path)
+	s, err := openAOFDatabase(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -352,7 +352,7 @@ func assertAOFConfirmedEntries(t *testing.T, newStore func() storage.Backend, pa
 	}
 }
 
-func testAOFHardlinkOwnershipRewriteAndRestart(t *testing.T, newStore func() storage.Backend) {
+func TestAOFHardlinkOwnershipRewriteAndRestart(t *testing.T) {
 	for _, linkBeforeOpen := range []bool{false, true} {
 		t.Run(fmt.Sprintf("link-before-open=%v", linkBeforeOpen), func(t *testing.T) {
 			dir := t.TempDir()
@@ -363,7 +363,7 @@ func testAOFHardlinkOwnershipRewriteAndRestart(t *testing.T, newStore func() sto
 			var s *aofDatabase
 			if !linkBeforeOpen {
 				var err error
-				s, err = openAOFDatabase(newStore, path)
+				s, err = openAOFDatabase(path)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -375,7 +375,7 @@ func testAOFHardlinkOwnershipRewriteAndRestart(t *testing.T, newStore func() sto
 			}
 			before := readAOF(t, path)
 			for _, candidate := range []string{path, alias} {
-				if other, err := openAOFDatabase(newStore, candidate); err == nil {
+				if other, err := openAOFDatabase(candidate); err == nil {
 					other.Close()
 					t.Fatalf("accepted hardlinked AOF: %s", candidate)
 				}
@@ -404,7 +404,7 @@ func testAOFHardlinkOwnershipRewriteAndRestart(t *testing.T, newStore func() sto
 			}
 			if s == nil {
 				var err error
-				s, err = openAOFDatabase(newStore, path)
+				s, err = openAOFDatabase(path)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -418,18 +418,18 @@ func testAOFHardlinkOwnershipRewriteAndRestart(t *testing.T, newStore func() sto
 			if err := s.Close(); err != nil {
 				t.Fatal(err)
 			}
-			assertAOFConfirmedEntries(t, newStore, path, "before", "after")
+			assertAOFConfirmedEntries(t, path, "before", "after")
 		})
 	}
 }
 
-func testAOFRejectsDanglingSymlink(t *testing.T, newStore func() storage.Backend) {
+func TestAOFRejectsDanglingSymlink(t *testing.T) {
 	dir := t.TempDir()
 	path, alias := filepath.Join(dir, "data.aof"), filepath.Join(dir, "alias.aof")
 	if err := os.Symlink("data.aof", alias); err != nil {
 		t.Fatal(err)
 	}
-	if s, err := openAOFDatabase(newStore, alias); err == nil {
+	if s, err := openAOFDatabase(alias); err == nil {
 		s.Close()
 		t.Fatal("accepted dangling symlink")
 	} else if !errors.Is(err, os.ErrNotExist) {
@@ -440,22 +440,22 @@ func testAOFRejectsDanglingSymlink(t *testing.T, newStore func() storage.Backend
 	}
 	// Creating the target through its real path must make the existing link
 	// usable, while sharing the same ownership lock.
-	s, err := openAOFDatabase(newStore, path)
+	s, err := openAOFDatabase(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer s.Close()
-	if other, err := openAOFDatabase(newStore, alias); err == nil {
+	if other, err := openAOFDatabase(alias); err == nil {
 		other.Close()
 		t.Fatal("accepted second writer through formerly dangling link")
 	}
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
-	assertAOFConfirmedEntries(t, newStore, alias)
+	assertAOFConfirmedEntries(t, alias)
 }
 
-func testAOFReplayExpirationAfterHistory(t *testing.T, newStore func() storage.Backend) {
+func TestAOFReplayExpirationAfterHistory(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "history.aof")
 	input := append(aof.Replacement("keep", "original", 1), aof.Encode("PERSIST", "keep")...)
 	input = append(input, aof.Replacement("expired", "original", 1)...)
@@ -463,7 +463,7 @@ func testAOFReplayExpirationAfterHistory(t *testing.T, newStore func() storage.B
 	if err := os.WriteFile(path, input, 0600); err != nil {
 		t.Fatal(err)
 	}
-	s, err := openAOFDatabase(newStore, path)
+	s, err := openAOFDatabase(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -476,10 +476,10 @@ func testAOFReplayExpirationAfterHistory(t *testing.T, newStore func() storage.B
 	}
 }
 
-func testAOFExpirationIsRecordedBeforeDeletion(t *testing.T, newStore func() storage.Backend) {
+func TestAOFExpirationIsRecordedBeforeDeletion(t *testing.T) {
 	for _, operation := range []string{"read", "failed update", "replacement"} {
 		t.Run(operation, func(t *testing.T) {
-			s := testAOF(t, newStore)
+			s := testAOF(t)
 			now := int64(1000)
 			s.now = func() time.Time { return time.UnixMilli(now) }
 			putAOF(t, s, "key", Entry{Value: "old", ExpiresAt: 1010})
@@ -522,8 +522,8 @@ func testAOFExpirationIsRecordedBeforeDeletion(t *testing.T, newStore func() sto
 	}
 }
 
-func testAOFRewriteSchedulingAndClose(t *testing.T, newStore func() storage.Backend) {
-	s := testAOF(t, newStore)
+func TestAOFRewriteSchedulingAndClose(t *testing.T) {
+	s := testAOF(t)
 	putAOF(t, s, "key", Entry{Value: "old"})
 	putAOF(t, s, "key", Entry{Value: "new"})
 	// Hold the persistence gate so the scheduled job cannot finish before the
@@ -549,8 +549,8 @@ type closeFailure struct {
 
 func (f closeFailure) Close() error { return errors.Join(f.appendFile.Close(), f.cause) }
 
-func testAOFRewriteFailureAfterRenamePoisonsWrites(t *testing.T, newStore func() storage.Backend) {
-	s := testAOF(t, newStore)
+func TestAOFRewriteFailureAfterRenamePoisonsWrites(t *testing.T) {
+	s := testAOF(t)
 	putAOF(t, s, "key", Entry{Value: "old"})
 	putAOF(t, s, "key", Entry{Value: "new"})
 	cause := errors.New("old descriptor close failed")
@@ -572,8 +572,8 @@ func testAOFRewriteFailureAfterRenamePoisonsWrites(t *testing.T, newStore func()
 	}
 }
 
-func testAOFConcurrentMutationRewriteAndClose(t *testing.T, newStore func() storage.Backend) {
-	s := testAOF(t, newStore)
+func TestAOFConcurrentMutationRewriteAndClose(t *testing.T) {
+	s := testAOF(t)
 	const workers, iterations = 4, 20
 	var wg sync.WaitGroup
 	for range workers {
@@ -607,7 +607,7 @@ func testAOFConcurrentMutationRewriteAndClose(t *testing.T, newStore func() stor
 	if err := s.Close(); err != nil {
 		t.Fatal(err)
 	}
-	restored, err := openAOFDatabase(newStore, s.path)
+	restored, err := openAOFDatabase(s.path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -618,8 +618,8 @@ func testAOFConcurrentMutationRewriteAndClose(t *testing.T, newStore func() stor
 	}
 }
 
-func testAOFRewriteFailureKeepsOriginalUsable(t *testing.T, newStore func() storage.Backend) {
-	s := testAOF(t, newStore)
+func TestAOFRewriteFailureKeepsOriginalUsable(t *testing.T) {
+	s := testAOF(t)
 	putAOF(t, s, "key", Entry{Value: "old"})
 	before := readAOF(t, s.path)
 	// A replacement target that is a directory fails atomically at rename.
@@ -640,30 +640,5 @@ func testAOFRewriteFailureKeepsOriginalUsable(t *testing.T, newStore func() stor
 	leftovers, err := filepath.Glob(filepath.Join(filepath.Dir(s.path), ".peridot-aof-*"))
 	if err != nil || len(leftovers) != 0 {
 		t.Fatalf("temporary files: %v,%v", leftovers, err)
-	}
-}
-
-// Every persistence behavior must work independently of the selected backend.
-func TestAOFBackends(t *testing.T) {
-	for name, newStore := range map[string]func() storage.Backend{
-		"xsync": func() storage.Backend { return storage.NewXsync() },
-		"dlht":  func() storage.Backend { return storage.NewDLHT() },
-	} {
-		t.Run(name, func(t *testing.T) {
-			t.Run("AppendRewriteAndRestart", func(t *testing.T) { testAOFAppendRewriteAndRestart(t, newStore) })
-			t.Run("NoOpErrorsAndCancellation", func(t *testing.T) { testAOFNoOpErrorsAndCancellation(t, newStore) })
-			t.Run("FailurePreventsPublicationAndFurtherWrites", func(t *testing.T) { testAOFFailurePreventsPublicationAndFurtherWrites(t, newStore) })
-			t.Run("LoadFailureDoesNotModifyInputOrKeepLock", func(t *testing.T) { testAOFLoadFailureDoesNotModifyInputOrKeepLock(t, newStore) })
-			t.Run("ExclusiveOwnershipAcrossRewrite", func(t *testing.T) { testAOFExclusiveOwnershipAcrossRewrite(t, newStore) })
-			t.Run("SymlinkOwnershipRewriteAndRestart", func(t *testing.T) { testAOFSymlinkOwnershipRewriteAndRestart(t, newStore) })
-			t.Run("HardlinkOwnershipRewriteAndRestart", func(t *testing.T) { testAOFHardlinkOwnershipRewriteAndRestart(t, newStore) })
-			t.Run("RejectsDanglingSymlink", func(t *testing.T) { testAOFRejectsDanglingSymlink(t, newStore) })
-			t.Run("ReplayExpirationAfterHistory", func(t *testing.T) { testAOFReplayExpirationAfterHistory(t, newStore) })
-			t.Run("ExpirationIsRecordedBeforeDeletion", func(t *testing.T) { testAOFExpirationIsRecordedBeforeDeletion(t, newStore) })
-			t.Run("RewriteSchedulingAndClose", func(t *testing.T) { testAOFRewriteSchedulingAndClose(t, newStore) })
-			t.Run("RewriteFailureAfterRenamePoisonsWrites", func(t *testing.T) { testAOFRewriteFailureAfterRenamePoisonsWrites(t, newStore) })
-			t.Run("ConcurrentMutationRewriteAndClose", func(t *testing.T) { testAOFConcurrentMutationRewriteAndClose(t, newStore) })
-			t.Run("RewriteFailureKeepsOriginalUsable", func(t *testing.T) { testAOFRewriteFailureKeepsOriginalUsable(t, newStore) })
-		})
 	}
 }

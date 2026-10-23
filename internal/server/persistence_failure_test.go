@@ -10,7 +10,6 @@ import (
 
 	"github.com/jr-dragon/peridot/internal/data"
 	"github.com/jr-dragon/peridot/internal/service/cmd"
-	"github.com/jr-dragon/peridot/internal/storage"
 	"github.com/jr-dragon/peridot/pkg/resp"
 )
 
@@ -39,7 +38,7 @@ func TestRewriteStartFailureAgainstRedis(t *testing.T) {
 			ref := startRedisFiles(t, nil, "--appendonly", "no")
 			config := data.DefaultConfig()
 			config.Dir, config.Save = t.TempDir(), nil
-			db := openPersistenceDB(t, config, storage.New)
+			db := openPersistenceDB(t, config)
 			_, peer := startRESPPipe(t, NewHandler(cmd.NewCommandsFromConfig(config, db)))
 			reader := resp.NewReader(peer)
 			exchange(t, ref.conn, ref.reader, 1, "HELLO", protocol)
@@ -74,7 +73,7 @@ func TestForegroundSaveFailureAgainstRedis(t *testing.T) {
 			config.Dir = t.TempDir()
 			config.Save = []data.SaveRule{{Seconds: 3600, Changes: 1}}
 			config.AppendOnly, config.AppendFsync = appendOnly == "yes", "always"
-			db := openPersistenceDB(t, config, storage.New)
+			db := openPersistenceDB(t, config)
 			_, peer := startRESPPipe(t, NewHandler(cmd.NewCommandsFromConfig(config, db)))
 			paths := []string{filepath.Join(ref.dir, "dump.rdb"), filepath.Join(config.Dir, "dump.rdb")}
 			for _, path := range paths {

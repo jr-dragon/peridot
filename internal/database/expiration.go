@@ -72,6 +72,19 @@ func (s *DB) expireKey(key string) error {
 	return nil
 }
 
+// expireComputed prepares expiration inside a raw Compute callback. The caller
+// returns ComputeDelete to publish removal without reentering the bucket lock.
+// The database gate prevents an expiration sample or snapshot from observing
+// the index change before the physical deletion is published.
+func (s *DB) expireComputed(key string) error {
+	if err := s.append(key, storage.Entry{}, false); err != nil && !errors.Is(err, ErrAOFFailed) {
+		return err
+	}
+	s.trackExpiration(key, storage.Entry{})
+	s.dirty.Add(1)
+	return nil
+}
+
 func (s *DB) trackExpiration(key string, entry storage.Entry) {
 	e := s.expiration
 	if e == nil {

@@ -98,13 +98,13 @@ func assertDatabaseState(t *testing.T, db *database.DB, want map[string]storage.
 		}
 	}
 }
-func openPersistenceDB(t *testing.T, config data.Config, newStore func() storage.Backend) *database.DB {
+func openPersistenceDB(t *testing.T, config data.Config) *database.DB {
 	t.Helper()
 	p, err := persistence.New(config)
 	if err != nil {
 		t.Fatal(err)
 	}
-	db := database.New(newStore(), p)
+	db := database.New(storage.New(), p)
 	t.Cleanup(func() {
 		if err := db.Close(); err != nil {
 			t.Error(err)
@@ -141,102 +141,100 @@ func referenceRewrite(t *testing.T, ref redisAOFReference) {
 
 // These tests pass complete Redis-produced artifact sets in both directions.
 func TestPersistenceRedisBidirectional(t *testing.T) {
-	for backend, newStore := range map[string]func() storage.Backend{"xsync": func() storage.Backend { return storage.NewXsync() }, "dlht": func() storage.Backend { return storage.NewDLHT() }} {
-		for _, mode := range []string{"rdb", "multipart-rdb", "multipart-plain"} {
-			t.Run(backend+"/"+mode, func(t *testing.T) {
-				multipart := mode != "rdb"
-				preamble := mode != "multipart-plain"
-				args := []string{"--appendonly", map[bool]string{true: "yes", false: "no"}[multipart], "--aof-use-rdb-preamble", map[bool]string{true: "yes", false: "no"}[preamble]}
-				ref := startRedisFiles(t, nil, args...)
-				want := persistenceFixture()
-				for k, e := range want {
-					command := []string{"SET", k, e.Value.(string)}
-					if e.ExpiresAt != 0 {
-						command = append(command, "PXAT", fmt.Sprint(e.ExpiresAt))
-					}
-					if got := exchange(t, ref.conn, ref.reader, 1, command...); got != "+OK\r\n" {
+	for _, mode := range []string{"rdb", "multipart-rdb", "multipart-plain"} {
+		t.Run(mode, func(t *testing.T) {
+			multipart := mode != "rdb"
+			preamble := mode != "multipart-plain"
+			args := []string{"--appendonly", map[bool]string{true: "yes", false: "no"}[multipart], "--aof-use-rdb-preamble", map[bool]string{true: "yes", false: "no"}[preamble]}
+			ref := startRedisFiles(t, nil, args...)
+			want := persistenceFixture()
+			for k, e := range want {
+				command := []string{"SET", k, e.Value.(string)}
+				if e.ExpiresAt != 0 {
+					command = append(command, "PXAT", fmt.Sprint(e.ExpiresAt))
+				}
+				if got := exchange(t, ref.conn, ref.reader, 1, command...); got != "+OK\r\n" {
+					t.Fatal(got)
+				}
+			}
+			if multipart {
+				referenceRewrite(t, ref)
+				for _, command := range [][]string{{"SET", "overwritten", "after-base"}, {"SET", "tail", "incremental"}, {"SET", "gone", "temporary"}, {"DEL", "gone"}, {"PERSIST", "future"}} {
+					if got := exchange(t, ref.conn, ref.reader, 1, command...); strings.HasPrefix(got, "-") {
 						t.Fatal(got)
 					}
 				}
-				if multipart {
-					referenceRewrite(t, ref)
-					for _, command := range [][]string{{"SET", "overwritten", "after-base"}, {"SET", "tail", "incremental"}, {"SET", "gone", "temporary"}, {"DEL", "gone"}, {"PERSIST", "future"}} {
-						if got := exchange(t, ref.conn, ref.reader, 1, command...); strings.HasPrefix(got, "-") {
-							t.Fatal(got)
-						}
-					}
-					want["overwritten"] = storage.Entry{Value: "after-base"}
-					want["tail"] = storage.Entry{Value: "incremental"}
-					want["future"] = storage.Entry{Value: "ttl"}
-				} else if got := exchange(t, ref.conn, ref.reader, 1, "SAVE"); got != "+OK\r\n" {
-					t.Fatal(got)
-				}
-				ref.stop()
-				config := data.DefaultConfig()
-				config.Dir = t.TempDir()
-				config.Save = nil
-				config.AppendOnly = multipart
-				config.AOFUseRDBPreamble = preamble
-				config.AppendFsync = "always"
-				putPersistenceFiles(t, config.Dir, persistenceFiles(t, ref.dir, multipart))
-				// AOF must take precedence over a corrupt standalone snapshot.
-				if multipart {
-					if err := os.WriteFile(filepath.Join(config.Dir, "dump.rdb"), []byte("not an RDB"), 0600); err != nil {
-						t.Fatal(err)
-					}
-				}
-				db := openPersistenceDB(t, config, newStore)
-				assertDatabaseState(t, db, want)
-				if _, ok, err := db.Get(context.Background(), "gone"); err != nil || ok {
-					t.Fatal("deleted key returned", err)
-				}
-				_, conn := startRESPPipe(t, NewHandler(cmd.NewCommandsFromConfig(config, db)))
-				reader := resp.NewReader(conn)
-				if got := exchange(t, conn, reader, 1, "SET", "peridot", "exported", "PXAT", "4102444900000"); got != "+OK\r\n" {
-					t.Fatal(got)
-				}
-				want["peridot"] = storage.Entry{Value: "exported", ExpiresAt: 4102444900000}
-				if multipart {
-					if err := db.Rewrite(context.Background()); err != nil {
-						t.Fatal(err)
-					}
-				} else if got := exchange(t, conn, reader, 1, "SAVE"); got != "+OK\r\n" {
-					t.Fatal(got)
-				}
-				if got := exchange(t, conn, reader, 1, "LASTSAVE"); !strings.HasPrefix(got, ":") {
-					t.Fatal(got)
-				}
-				if multipart {
-					if got := exchange(t, conn, reader, 1, "SET", "after-rewrite", "durable"); got != "+OK\r\n" {
-						t.Fatal(got)
-					}
-					want["after-rewrite"] = storage.Entry{Value: "durable"}
-				}
-				conn.Close()
-				if err := db.Close(); err != nil {
+				want["overwritten"] = storage.Entry{Value: "after-base"}
+				want["tail"] = storage.Entry{Value: "incremental"}
+				want["future"] = storage.Entry{Value: "ttl"}
+			} else if got := exchange(t, ref.conn, ref.reader, 1, "SAVE"); got != "+OK\r\n" {
+				t.Fatal(got)
+			}
+			ref.stop()
+			config := data.DefaultConfig()
+			config.Dir = t.TempDir()
+			config.Save = nil
+			config.AppendOnly = multipart
+			config.AOFUseRDBPreamble = preamble
+			config.AppendFsync = "always"
+			putPersistenceFiles(t, config.Dir, persistenceFiles(t, ref.dir, multipart))
+			// AOF must take precedence over a corrupt standalone snapshot.
+			if multipart {
+				if err := os.WriteFile(filepath.Join(config.Dir, "dump.rdb"), []byte("not an RDB"), 0600); err != nil {
 					t.Fatal(err)
 				}
-				restarted := openPersistenceDB(t, config, newStore)
-				assertDatabaseState(t, restarted, want)
-				if err := restarted.Close(); err != nil {
+			}
+			db := openPersistenceDB(t, config)
+			assertDatabaseState(t, db, want)
+			if _, ok, err := db.Get(context.Background(), "gone"); err != nil || ok {
+				t.Fatal("deleted key returned", err)
+			}
+			_, conn := startRESPPipe(t, NewHandler(cmd.NewCommandsFromConfig(config, db)))
+			reader := resp.NewReader(conn)
+			if got := exchange(t, conn, reader, 1, "SET", "peridot", "exported", "PXAT", "4102444900000"); got != "+OK\r\n" {
+				t.Fatal(got)
+			}
+			want["peridot"] = storage.Entry{Value: "exported", ExpiresAt: 4102444900000}
+			if multipart {
+				if err := db.Rewrite(context.Background()); err != nil {
 					t.Fatal(err)
 				}
-				exported := persistenceFiles(t, config.Dir, multipart)
-				consumer := startRedisFiles(t, exported, args...)
-				assertReferenceState(t, consumer, want)
-				if multipart {
-					referenceRewrite(t, consumer)
-				} else if got := exchange(t, consumer.conn, consumer.reader, 1, "SAVE"); got != "+OK\r\n" {
+			} else if got := exchange(t, conn, reader, 1, "SAVE"); got != "+OK\r\n" {
+				t.Fatal(got)
+			}
+			if got := exchange(t, conn, reader, 1, "LASTSAVE"); !strings.HasPrefix(got, ":") {
+				t.Fatal(got)
+			}
+			if multipart {
+				if got := exchange(t, conn, reader, 1, "SET", "after-rewrite", "durable"); got != "+OK\r\n" {
 					t.Fatal(got)
 				}
-				consumer.stop()
-				// Redis reserializes the imported data, then Peridot loads it again.
-				config.Dir = t.TempDir()
-				putPersistenceFiles(t, config.Dir, persistenceFiles(t, consumer.dir, multipart))
-				final := openPersistenceDB(t, config, newStore)
-				assertDatabaseState(t, final, want)
-			})
-		}
+				want["after-rewrite"] = storage.Entry{Value: "durable"}
+			}
+			conn.Close()
+			if err := db.Close(); err != nil {
+				t.Fatal(err)
+			}
+			restarted := openPersistenceDB(t, config)
+			assertDatabaseState(t, restarted, want)
+			if err := restarted.Close(); err != nil {
+				t.Fatal(err)
+			}
+			exported := persistenceFiles(t, config.Dir, multipart)
+			consumer := startRedisFiles(t, exported, args...)
+			assertReferenceState(t, consumer, want)
+			if multipart {
+				referenceRewrite(t, consumer)
+			} else if got := exchange(t, consumer.conn, consumer.reader, 1, "SAVE"); got != "+OK\r\n" {
+				t.Fatal(got)
+			}
+			consumer.stop()
+			// Redis reserializes the imported data, then Peridot loads it again.
+			config.Dir = t.TempDir()
+			putPersistenceFiles(t, config.Dir, persistenceFiles(t, consumer.dir, multipart))
+			final := openPersistenceDB(t, config)
+			assertDatabaseState(t, final, want)
+		})
 	}
 }
 

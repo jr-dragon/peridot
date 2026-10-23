@@ -52,7 +52,7 @@ func TestStringPipelineAndProtocolVersions(t *testing.T) {
 	forEachStringStore(t, testStringPipelineAndProtocolVersions)
 }
 
-func testStringPipelineAndProtocolVersions(t *testing.T, newStore func() storage.Store) {
+func testStringPipelineAndProtocolVersions(t *testing.T, newStore func() storage.KeyStore) {
 	store := newStore()
 	handler := NewHandler(cmd.NewCommands(store, nil))
 	_, first := startRESPPipe(t, handler)
@@ -99,7 +99,7 @@ func testStringPipelineAndProtocolVersions(t *testing.T, newStore func() storage
 }
 
 type failingStringStore struct {
-	storage.Store
+	storage.KeyStore
 	cause error
 }
 
@@ -128,10 +128,9 @@ func TestStringsAgainstRedis(t *testing.T) {
 func TestSnapshotOnlyStringsAgainstRedis(t *testing.T) {
 	for name, factory := range map[string]func() storage.Backend{
 		"xsync": func() storage.Backend { return storage.NewXsync() },
-		"dlht":  func() storage.Backend { return storage.NewDLHT() },
 	} {
 		t.Run(name, func(t *testing.T) {
-			testStringsAgainstRedis(t, func() storage.Store {
+			testStringsAgainstRedis(t, func() storage.KeyStore {
 				config := data.DefaultConfig()
 				config.Dir, config.Save = t.TempDir(), nil
 				p, err := persistence.New(config)
@@ -150,7 +149,7 @@ func TestSnapshotOnlyStringsAgainstRedis(t *testing.T) {
 	}
 }
 
-func testStringsAgainstRedis(t *testing.T, newStore func() storage.Store) {
+func testStringsAgainstRedis(t *testing.T, newStore func() storage.KeyStore) {
 	path := os.Getenv("REDIS_REFERENCE")
 	if path == "" {
 		t.Skip("set REDIS_REFERENCE to a Redis 8.10.2 executable")
@@ -292,8 +291,7 @@ func testStringsAgainstRedis(t *testing.T, newStore func() storage.Store) {
 	}
 }
 
-func forEachStringStore(t *testing.T, run func(*testing.T, func() storage.Store)) {
+func forEachStringStore(t *testing.T, run func(*testing.T, func() storage.KeyStore)) {
 	t.Helper()
-	t.Run("xsync", func(t *testing.T) { run(t, func() storage.Store { return storage.NewXsync() }) })
-	t.Run("dlht", func(t *testing.T) { run(t, func() storage.Store { return storage.NewDLHT() }) })
+	t.Run("xsync", func(t *testing.T) { run(t, func() storage.KeyStore { return storage.NewXsync() }) })
 }

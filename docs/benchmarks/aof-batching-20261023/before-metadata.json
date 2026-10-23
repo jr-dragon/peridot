@@ -1,0 +1,21 @@
+{
+  "commit": "0ed0e176ead0cee82349f17a641fba76dd8803dd",
+  "redis": "Redis server v=8.10.2 sha=00000000:1 malloc=libc bits=64 build=764b3e45065a66fb",
+  "go": "go version go1.27.3 darwin/arm64",
+  "hardware": "machdep.cpu.brand_string: Apple M2 Pro\nhw.ncpu: 10\nhw.memsize: 34359738368",
+  "os": "ProductName:\t\tmacOS\nProductVersion:\t\t26.6.2\nBuildVersion:\t\t25G83",
+  "candidate": "/tmp/peridot-aof-20261023/peridot-before",
+  "sha256": "4d02d03389c92858fecb0fa11443d27014f019973605ea41a95024f815a3eeec",
+  "clients": 50,
+  "keyspace": 10000,
+  "value_bytes": 32,
+  "rounds": 3,
+  "requests": 1000000,
+  "always_requests": 20000,
+  "seed": 42,
+  "client_threads": 1,
+  "gomaxprocs": "unset",
+  "protocol": "RESP2",
+  "started": "2026-10-23T04:57:32.198188+00:00",
+  "finished": "2026-10-23T05:12:48.778550+00:00"
+}

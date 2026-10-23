@@ -1,0 +1,28 @@
+File: peridot-before
+Type: cpu
+Time: 2026-10-23 14:00:56 CST
+Duration: 5.10s, Total samples = 22.27s (436.37%)
+Showing nodes accounting for 20.24s, 90.88% of 22.27s total
+Dropped 184 nodes (cum <= 0.11s)
+Showing top 20 nodes out of 105
+      flat  flat%   sum%        cum   cum%
+     6.09s 27.35% 27.35%      6.09s 27.35%  syscall.rawsyscalln
+     5.06s 22.72% 50.07%      5.06s 22.72%  runtime.pthread_cond_wait
+     3.68s 16.52% 66.59%      3.68s 16.52%  runtime.usleep
+     2.16s  9.70% 76.29%      2.16s  9.70%  runtime.kevent
+     2.15s  9.65% 85.95%      2.15s  9.65%  runtime.pthread_cond_signal
+     0.21s  0.94% 86.89%      4.20s 18.86%  internal/sync.(*Mutex).lockSlow
+     0.14s  0.63% 87.52%      7.53s 33.81%  runtime.lock2
+     0.13s  0.58% 88.10%      0.13s  0.58%  runtime.madvise
+     0.09s   0.4% 88.50%      4.29s 19.26%  internal/sync.(*Mutex).Lock (inline)
+     0.08s  0.36% 88.86%      2.18s  9.79%  runtime.unlock2
+     0.07s  0.31% 89.18%      4.54s 20.39%  internal/sync.(*Mutex).Unlock (inline)
+     0.07s  0.31% 89.49%      0.12s  0.54%  runtime.casgstatus
+     0.06s  0.27% 89.76%      0.19s  0.85%  sync.runtime_notifyListNotifyAll
+     0.05s  0.22% 89.99%      1.03s  4.63%  bufio.(*Reader).Peek
+     0.05s  0.22% 90.21%      0.51s  2.29%  sync.runtime_notifyListWait
+     0.04s  0.18% 90.39%      2.10s  9.43%  runtime.unlock2Wake
+     0.03s  0.13% 90.53%     13.41s 60.22%  github.com/jr-dragon/peridot/internal/database.(*computedUpdate).apply
+     0.03s  0.13% 90.66%      1.80s  8.08%  github.com/jr-dragon/peridot/internal/persistence.(*AOF).Err
+     0.03s  0.13% 90.79%      4.45s 19.98%  runtime.semrelease1
+     0.02s  0.09% 90.88%      1.87s  8.40%  github.com/jr-dragon/peridot/internal/persistence.(*Engine).Err

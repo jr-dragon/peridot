@@ -36,7 +36,7 @@ func commandReply(t *testing.T, command Command, args ...string) string {
 	return string(value.Marshal())
 }
 
-func seed(t *testing.T, store storage.Store, key string, entry storage.Entry) {
+func seed(t *testing.T, store storage.KeyStore, key string, entry storage.Entry) {
 	t.Helper()
 	if err := store.Update(context.Background(), key, func(storage.Entry, bool, int64) (storage.Entry, bool, error) {
 		return entry, true, nil
@@ -49,7 +49,7 @@ func TestGetSet(t *testing.T) {
 	forEachStringStore(t, testGetSet)
 }
 
-func testGetSet(t *testing.T, newStore func() storage.Store) {
+func testGetSet(t *testing.T, newStore func() storage.KeyStore) {
 	const wrongType = "-WRONGTYPE Operation against a key holding the wrong kind of value\r\n"
 	for _, tc := range []struct {
 		name    string
@@ -159,7 +159,7 @@ func TestSetTTLPreservation(t *testing.T) {
 	forEachStringStore(t, testSetTTLPreservation)
 }
 
-func testSetTTLPreservation(t *testing.T, newStore func() storage.Store) {
+func testSetTTLPreservation(t *testing.T, newStore func() storage.KeyStore) {
 	for _, options := range [][]string{nil, {"GET"}, {"KEEPTTL"}, {"KEEPTTL", "GET"}, {"NX"}, {"IFEQ", "different"}, {"EX", "10"}, {"PX", "10000"}, {"EXAT", "4102444800"}, {"PXAT", "4102444800000"}, {"EX", "bad", "EX", "10"}} {
 		t.Run(strings.Join(options, " "), func(t *testing.T) {
 			store := newStore()
@@ -195,7 +195,7 @@ func TestSetConcurrentConditions(t *testing.T) {
 	forEachStringStore(t, testSetConcurrentConditions)
 }
 
-func testSetConcurrentConditions(t *testing.T, newStore func() storage.Store) {
+func testSetConcurrentConditions(t *testing.T, newStore func() storage.KeyStore) {
 	for _, condition := range [][]string{{"NX"}, {"IFEQ", "old"}, {"IFDEQ", "0f3ca07a8cc8bf40"}} {
 		t.Run(condition[0], func(t *testing.T) {
 			store := newStore()
@@ -220,8 +220,7 @@ func testSetConcurrentConditions(t *testing.T, newStore func() storage.Store) {
 	}
 }
 
-func forEachStringStore(t *testing.T, run func(*testing.T, func() storage.Store)) {
+func forEachStringStore(t *testing.T, run func(*testing.T, func() storage.KeyStore)) {
 	t.Helper()
-	t.Run("xsync", func(t *testing.T) { run(t, func() storage.Store { return storage.NewXsync() }) })
-	t.Run("dlht", func(t *testing.T) { run(t, func() storage.Store { return storage.NewDLHT() }) })
+	t.Run("xsync", func(t *testing.T) { run(t, func() storage.KeyStore { return storage.NewXsync() }) })
 }

@@ -1,0 +1,178 @@
+[
+  {
+    "engine": "peridot-handoff",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "GET",
+    "rps": 833333.31,
+    "avg_latency_ms": 0.927,
+    "p50_latency_ms": 0.959,
+    "p99_latency_ms": 1.279,
+    "max_latency_ms": 1.527
+  },
+  {
+    "engine": "peridot-handoff",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 12531.33,
+    "avg_latency_ms": 62.964,
+    "p50_latency_ms": 61.503,
+    "p99_latency_ms": 82.815,
+    "max_latency_ms": 90.559
+  },
+  {
+    "engine": "peridot-handoff",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "GET",
+    "rps": 1351351.38,
+    "avg_latency_ms": 0.33,
+    "p50_latency_ms": 0.319,
+    "p99_latency_ms": 0.711,
+    "max_latency_ms": 2.455
+  },
+  {
+    "engine": "peridot-handoff",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 593119.81,
+    "avg_latency_ms": 1.308,
+    "p50_latency_ms": 1.239,
+    "p99_latency_ms": 2.183,
+    "max_latency_ms": 11.599
+  },
+  {
+    "engine": "peridot-handoff",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "GET",
+    "rps": 1344086.0,
+    "avg_latency_ms": 0.33,
+    "p50_latency_ms": 0.319,
+    "p99_latency_ms": 0.679,
+    "max_latency_ms": 1.927
+  },
+  {
+    "engine": "peridot-handoff",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 599880.0,
+    "avg_latency_ms": 1.293,
+    "p50_latency_ms": 1.231,
+    "p99_latency_ms": 2.183,
+    "max_latency_ms": 4.111
+  },
+  {
+    "engine": "peridot-handoff",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "GET",
+    "rps": 1371742.12,
+    "avg_latency_ms": 0.326,
+    "p50_latency_ms": 0.319,
+    "p99_latency_ms": 0.671,
+    "max_latency_ms": 1.903
+  },
+  {
+    "engine": "peridot-handoff",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 1344086.0,
+    "avg_latency_ms": 0.401,
+    "p50_latency_ms": 0.319,
+    "p99_latency_ms": 1.991,
+    "max_latency_ms": 3.279
+  },
+  {
+    "engine": "redis",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "GET",
+    "rps": 909090.94,
+    "avg_latency_ms": 0.821,
+    "p50_latency_ms": 0.887,
+    "p99_latency_ms": 1.079,
+    "max_latency_ms": 1.223
+  },
+  {
+    "engine": "redis",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 134228.19,
+    "avg_latency_ms": 5.795,
+    "p50_latency_ms": 5.871,
+    "p99_latency_ms": 12.287,
+    "max_latency_ms": 14.055
+  },
+  {
+    "engine": "redis",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "GET",
+    "rps": 1231527.12,
+    "avg_latency_ms": 0.556,
+    "p50_latency_ms": 0.543,
+    "p99_latency_ms": 0.855,
+    "max_latency_ms": 2.023
+  },
+  {
+    "engine": "redis",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 689655.12,
+    "avg_latency_ms": 1.073,
+    "p50_latency_ms": 1.063,
+    "p99_latency_ms": 1.479,
+    "max_latency_ms": 2.471
+  },
+  {
+    "engine": "redis",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "GET",
+    "rps": 1233045.62,
+    "avg_latency_ms": 0.557,
+    "p50_latency_ms": 0.551,
+    "p99_latency_ms": 0.831,
+    "max_latency_ms": 1.159
+  },
+  {
+    "engine": "redis",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 687285.19,
+    "avg_latency_ms": 1.079,
+    "p50_latency_ms": 1.071,
+    "p99_latency_ms": 1.495,
+    "max_latency_ms": 3.343
+  },
+  {
+    "engine": "redis",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "GET",
+    "rps": 1264222.5,
+    "avg_latency_ms": 0.543,
+    "p50_latency_ms": 0.535,
+    "p99_latency_ms": 0.815,
+    "max_latency_ms": 1.071
+  },
+  {
+    "engine": "redis",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 1025641.0,
+    "avg_latency_ms": 0.693,
+    "p50_latency_ms": 0.687,
+    "p99_latency_ms": 0.959,
+    "max_latency_ms": 1.335
+  }
+]

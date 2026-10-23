@@ -1,0 +1,23 @@
+File: peridot-after
+Type: cpu
+Time: 2026-10-23 13:17:32 CST
+Duration: 5.10s, Total samples = 22.20s (435.09%)
+Showing nodes accounting for 20.27s, 91.31% of 22.20s total
+Dropped 172 nodes (cum <= 0.11s)
+Showing top 15 nodes out of 101
+      flat  flat%   sum%        cum   cum%
+     6.42s 28.92% 28.92%      6.43s 28.96%  syscall.rawsyscalln
+     4.86s 21.89% 50.81%      4.86s 21.89%  runtime.pthread_cond_wait
+     3.43s 15.45% 66.26%      3.43s 15.45%  runtime.usleep
+     2.38s 10.72% 76.98%      2.38s 10.72%  runtime.pthread_cond_signal
+     2.27s 10.23% 87.21%      2.27s 10.23%  runtime.kevent
+     0.22s  0.99% 88.20%      4.37s 19.68%  internal/sync.(*Mutex).lockSlow
+     0.19s  0.86% 89.05%      0.19s  0.86%  runtime.pthread_kill
+     0.14s  0.63% 89.68%      7.16s 32.25%  runtime.lock2
+     0.08s  0.36% 90.05%      1.11s  5.00%  runtime.runqgrab
+     0.06s  0.27% 90.32%     13.43s 60.50%  github.com/jr-dragon/peridot/internal/database.(*computedUpdate).apply
+     0.06s  0.27% 90.59%      2.34s 10.54%  runtime.unlock2
+     0.05s  0.23% 90.81%      4.23s 19.05%  internal/sync.(*Mutex).Unlock (inline)
+     0.05s  0.23% 91.04%      0.34s  1.53%  sync.runtime_notifyListWait
+     0.03s  0.14% 91.17%      1.07s  4.82%  bufio.(*Reader).Peek
+     0.03s  0.14% 91.31%      9.08s 40.90%  github.com/jr-dragon/peridot/internal/persistence.(*AOF).append

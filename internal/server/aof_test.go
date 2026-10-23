@@ -178,7 +178,7 @@ func waitRedisRewrite(t *testing.T, ref redisAOFReference, previousBase string) 
 	}
 }
 
-func testAOFLoadsRedisOriginalAndRewrittenCommands(t *testing.T, newStore func() storage.Backend) {
+func TestAOFLoadsRedisOriginalAndRewrittenCommands(t *testing.T) {
 	ref := startRedisAOF(t, nil)
 	const deadline = "4102444800000"
 	key, value := "key\x00\xff", "\x00\r\n\xff"
@@ -268,7 +268,7 @@ func testAOFLoadsRedisOriginalAndRewrittenCommands(t *testing.T, newStore func()
 			if err := os.WriteFile(path, input, 0600); err != nil {
 				t.Fatal(err)
 			}
-			s, err := openAOFDatabase(path, newStore)
+			s, err := openAOFDatabase(path)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -294,12 +294,12 @@ func testAOFLoadsRedisOriginalAndRewrittenCommands(t *testing.T, newStore func()
 	}
 }
 
-func testAOFRedisLoadsPeridotOriginalAndRewrite(t *testing.T, newStore func() storage.Backend) {
+func TestAOFRedisLoadsPeridotOriginalAndRewrite(t *testing.T) {
 	if os.Getenv("REDIS_REFERENCE") == "" {
 		t.Skip("set REDIS_REFERENCE to a Redis 8.10.2 executable")
 	}
 	path := filepath.Join(t.TempDir(), "export.aof")
-	s, err := openAOFDatabase(path, newStore)
+	s, err := openAOFDatabase(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,28 +363,10 @@ func testAOFRedisLoadsPeridotOriginalAndRewrite(t *testing.T, newStore func() st
 	}
 }
 
-func openAOFDatabase(path string, newStore func() storage.Backend) (*database.DB, error) {
+func openAOFDatabase(path string) (*database.DB, error) {
 	p, err := persistence.OpenAOF(path)
 	if err != nil {
 		return nil, err
 	}
-	return database.New(newStore(), p), nil
-}
-
-func TestAOFLoadsRedisOriginalAndRewrittenCommands(t *testing.T) {
-	for name, newStore := range map[string]func() storage.Backend{
-		"xsync": func() storage.Backend { return storage.NewXsync() },
-		"dlht":  func() storage.Backend { return storage.NewDLHT() },
-	} {
-		t.Run(name, func(t *testing.T) { testAOFLoadsRedisOriginalAndRewrittenCommands(t, newStore) })
-	}
-}
-
-func TestAOFRedisLoadsPeridotOriginalAndRewrite(t *testing.T) {
-	for name, newStore := range map[string]func() storage.Backend{
-		"xsync": func() storage.Backend { return storage.NewXsync() },
-		"dlht":  func() storage.Backend { return storage.NewDLHT() },
-	} {
-		t.Run(name, func(t *testing.T) { testAOFRedisLoadsPeridotOriginalAndRewrite(t, newStore) })
-	}
+	return database.New(storage.New(), p), nil
 }

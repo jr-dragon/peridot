@@ -17,11 +17,11 @@ import (
 )
 
 type Set struct {
-	store storage.Store
+	store storage.KeyUpdater
 	l     *slog.Logger
 }
 
-func NewSet(store storage.Store) *Set {
+func NewSet(store storage.KeyUpdater) *Set {
 	return &Set{store: store, l: slog.Default().With(slog.String("component", "set"))}
 }
 

@@ -9,10 +9,10 @@ import (
 	"github.com/zeebo/xxh3"
 )
 
-type Digest struct{ store storage.Store }
+type Digest struct{ store storage.KeyReader }
 
-func NewDigest(store storage.Store) *Digest { return &Digest{store: store} }
-func (*Digest) Name() string                { return "DIGEST" }
+func NewDigest(store storage.KeyReader) *Digest { return &Digest{store: store} }
+func (*Digest) Name() string                    { return "DIGEST" }
 func (c *Digest) Exec(ctx context.Context, args []resp.BulkString) (resp.Value, error) {
 	if len(args) != 2 {
 		return nil, newWrongNumberOfArgumentsError(c)

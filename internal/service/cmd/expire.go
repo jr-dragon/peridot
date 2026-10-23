@@ -11,10 +11,10 @@ import (
 	"github.com/jr-dragon/peridot/pkg/resp"
 )
 
-type Expire struct{ store storage.Store }
+type Expire struct{ store storage.KeyUpdater }
 
-func NewExpire(store storage.Store) *Expire { return &Expire{store: store} }
-func (*Expire) Name() string                { return "EXPIRE" }
+func NewExpire(store storage.KeyUpdater) *Expire { return &Expire{store: store} }
+func (*Expire) Name() string                     { return "EXPIRE" }
 
 type expireOptions struct{ nx, xx, gt, lt bool }
 

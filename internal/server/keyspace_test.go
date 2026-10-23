@@ -14,7 +14,7 @@ import (
 )
 
 func TestKeyspacePipeline(t *testing.T) {
-	forEachStringStore(t, func(t *testing.T, newStore func() storage.Store) {
+	forEachStringStore(t, func(t *testing.T, newStore func() storage.KeyStore) {
 		for _, protocol := range []string{"2", "3"} {
 			_, peer := startRESPPipe(t, NewHandler(cmd.NewCommands(newStore(), nil)))
 			reader := resp.NewReader(peer)
@@ -36,7 +36,7 @@ func TestKeyspacePipeline(t *testing.T) {
 }
 
 func TestKeyspaceAgainstRedis(t *testing.T) {
-	forEachStringStore(t, func(t *testing.T, newStore func() storage.Store) {
+	forEachStringStore(t, func(t *testing.T, newStore func() storage.KeyStore) {
 		for _, protocol := range []string{"2", "3"} {
 			t.Run("RESP"+protocol, func(t *testing.T) {
 				ref := startRedisFiles(t, nil, "--appendonly", "no")
@@ -129,7 +129,7 @@ func TestKeyspacePersistence(t *testing.T) {
 			config.Save = nil
 			config.AppendOnly = appendOnly
 			config.AppendFsync = "always"
-			db := openPersistenceDB(t, config, storage.New)
+			db := openPersistenceDB(t, config)
 			_, peer := startRESPPipe(t, NewHandler(cmd.NewCommandsFromConfig(config, db)))
 			reader := resp.NewReader(peer)
 			for _, key := range []string{"keep", "deleted", "zero", "negative"} {
@@ -152,7 +152,7 @@ func TestKeyspacePersistence(t *testing.T) {
 			if err := db.Close(); err != nil {
 				t.Fatal(err)
 			}
-			restored := openPersistenceDB(t, config, storage.New)
+			restored := openPersistenceDB(t, config)
 			assertDatabaseState(t, restored, map[string]storage.Entry{"keep": e})
 			for _, key := range []string{"deleted", "zero", "negative"} {
 				if _, ok, err := restored.Get(context.Background(), key); err != nil || ok {

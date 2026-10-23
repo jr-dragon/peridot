@@ -26,7 +26,7 @@ func NewCommandsFromConfig(_ data.Config, db *database.DB) []Command {
 	return append(NewCommands(db, db), &Save{db}, &BGSave{db}, &LastSave{db})
 }
 
-func NewCommands(store storage.Store, rewriter AOFRewriter) []Command {
+func NewCommands(store storage.KeyStore, rewriter AOFRewriter) []Command {
 	status, _ := store.(interface{ WriteError() error })
 	return []Command{
 		&Ping{writeStatus: status},

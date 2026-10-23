@@ -247,6 +247,7 @@ func (s *MultipartAOF) BeginRewrite(ctx context.Context, entries map[string]stor
 	defer s.syncMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.waitAppendLocked()
 	if s.closed {
 		return nil, ErrAOFClosed
 	}

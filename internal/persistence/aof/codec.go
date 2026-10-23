@@ -10,8 +10,6 @@ import (
 	"math"
 	"strconv"
 	"strings"
-
-	"github.com/jr-dragon/peridot/pkg/resp"
 )
 
 var ErrFormat = errors.New("aof: invalid or unsupported log")
@@ -26,19 +24,37 @@ type String struct {
 
 // Encode returns one binary-safe RESP command, without retaining arguments.
 func Encode(args ...string) []byte {
-	values := make([]resp.Value, len(args))
-	for i, arg := range args {
-		values[i] = resp.NewBulkString(arg)
+	return AppendCommand(nil, args...)
+}
+
+// AppendCommand appends one binary-safe RESP command to caller-owned storage.
+// It copies argument bytes and does not retain the argument slice.
+func AppendCommand(dst []byte, args ...string) []byte {
+	dst = append(dst, '*')
+	dst = strconv.AppendInt(dst, int64(len(args)), 10)
+	dst = append(dst, '\r', '\n')
+	for _, arg := range args {
+		dst = append(dst, '$')
+		dst = strconv.AppendInt(dst, int64(len(arg)), 10)
+		dst = append(dst, '\r', '\n')
+		dst = append(dst, arg...)
+		dst = append(dst, '\r', '\n')
 	}
-	return resp.NewArray(values).Marshal()
+	return dst
 }
 
 // Replacement encodes a resolved string replacement with an absolute deadline.
 func Replacement(key, value string, expiresAt int64) []byte {
+	return AppendReplacement(nil, key, value, expiresAt)
+}
+
+// AppendReplacement appends a resolved replacement to caller-owned storage.
+func AppendReplacement(dst []byte, key, value string, expiresAt int64) []byte {
 	if expiresAt != 0 {
-		return Encode("SET", key, value, "PXAT", strconv.FormatInt(expiresAt, 10))
+		var deadline [20]byte
+		return AppendCommand(dst, "SET", key, value, "PXAT", string(strconv.AppendInt(deadline[:0], expiresAt, 10)))
 	}
-	return Encode("SET", key, value)
+	return AppendCommand(dst, "SET", key, value)
 }
 
 // Load validates the complete log before returning private recovered state.

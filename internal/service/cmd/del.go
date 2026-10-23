@@ -8,10 +8,10 @@ import (
 	"github.com/jr-dragon/peridot/pkg/resp"
 )
 
-type Del struct{ store storage.Store }
+type Del struct{ store storage.KeyDeleter }
 
-func NewDel(store storage.Store) *Del { return &Del{store: store} }
-func (*Del) Name() string             { return "DEL" }
+func NewDel(store storage.KeyDeleter) *Del { return &Del{store: store} }
+func (*Del) Name() string                  { return "DEL" }
 func (c *Del) Exec(ctx context.Context, args []resp.BulkString) (resp.Value, error) {
 	if len(args) < 2 {
 		return nil, newWrongNumberOfArgumentsError(c)

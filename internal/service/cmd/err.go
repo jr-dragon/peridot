@@ -7,13 +7,12 @@ import (
 	"syscall"
 
 	"github.com/jr-dragon/peridot/internal/database"
-	"github.com/jr-dragon/peridot/internal/storage"
 	"github.com/jr-dragon/peridot/pkg/resp"
 )
 
 // writeValidationError preserves persistence error precedence on invalid input.
 // Valid writes check status only in the database's atomic mutation operation.
-func writeValidationError(store storage.Store, validation error) error {
+func writeValidationError(store any, validation error) error {
 	if status, ok := store.(interface{ WriteError() error }); ok {
 		if err := status.WriteError(); err != nil {
 			return persistenceCommandError(err)

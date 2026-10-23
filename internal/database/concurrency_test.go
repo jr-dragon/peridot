@@ -3,10 +3,10 @@ package database
 import (
 	"context"
 	"fmt"
-	"hash/maphash"
 	"sync"
 	"testing"
 	"testing/synctest"
+	"time"
 
 	"github.com/jr-dragon/peridot/internal/storage"
 )
@@ -15,28 +15,59 @@ type snapshotOnlyPersistence struct{ checkpointPersistence }
 
 func (*snapshotOnlyPersistence) RequiresOrderedMutations() bool { return false }
 
+// Find independent buckets through public atomic operations. Cancellation keeps
+// the map unchanged, so probing cannot resize it or change the selected buckets.
+func independentBackendKeys(t *testing.T, backend storage.Backend) []string {
+	t.Helper()
+	entered, release := make(chan struct{}), make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	t.Cleanup(unblock)
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		backend.Compute("first", func(e storage.Entry, _ bool) (storage.Entry, storage.ComputeOp) {
+			close(entered)
+			<-release
+			return e, storage.ComputeCancel
+		})
+	})
+	<-entered
+	completed := make(chan string, 32)
+	for i := range cap(completed) {
+		key := fmt.Sprint(i)
+		wg.Go(func() {
+			backend.Compute(key, func(e storage.Entry, _ bool) (storage.Entry, storage.ComputeOp) {
+				completed <- key
+				return e, storage.ComputeCancel
+			})
+		})
+	}
+	var second string
+	select {
+	case second = <-completed:
+	case <-time.After(3 * time.Second):
+		unblock()
+		wg.Wait()
+		t.Fatal("no independent backend bucket")
+	}
+	unblock()
+	wg.Wait()
+	return []string{"first", second}
+}
+
 func TestIndependentKeyUpdatesAndSnapshotBoundary(t *testing.T) {
 	for name, factory := range map[string]func() storage.Backend{
 		"xsync": func() storage.Backend { return storage.NewXsync() },
-		"dlht":  func() storage.Backend { return storage.NewDLHT() },
 	} {
 		t.Run(name, func(t *testing.T) {
+			backend := factory()
+			keys := independentBackendKeys(t, backend)
 			synctest.Test(t, func(t *testing.T) {
 				p := &snapshotOnlyPersistence{checkpointPersistence: checkpointPersistence{
 					entered: make(chan struct{}, 1), release: make(chan struct{}),
 				}}
-				db := New(factory(), p)
+				db := New(backend, p)
 				defer db.Close()
-				// Lock stripes may collide. Select two independent stripes so the
-				// test requires concurrency without assuming collision-free keys.
-				keys := []string{"first"}
-				for i := 0; ; i++ {
-					key := fmt.Sprint(i)
-					if maphash.String(db.seed, key)%uint64(len(db.keys)) != maphash.String(db.seed, keys[0])%uint64(len(db.keys)) {
-						keys = append(keys, key)
-						break
-					}
-				}
 				entered, release := make(chan string, 2), make(chan struct{})
 				updated := make(chan error, 2)
 				for _, key := range keys {
@@ -92,7 +123,6 @@ func TestIndependentKeyUpdatesAndSnapshotBoundary(t *testing.T) {
 func TestConcurrentSnapshotOnlyUpdatesKeepTTLIndexAndDirtyCount(t *testing.T) {
 	for name, factory := range map[string]func() storage.Backend{
 		"xsync": func() storage.Backend { return storage.NewXsync() },
-		"dlht":  func() storage.Backend { return storage.NewDLHT() },
 	} {
 		t.Run(name, func(t *testing.T) {
 			db := manualExpirationDB(t, factory(), &snapshotOnlyPersistence{})

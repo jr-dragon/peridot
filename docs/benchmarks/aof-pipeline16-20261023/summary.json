@@ -1,0 +1,762 @@
+[
+  {
+    "stage": "before",
+    "engine": "peridot-before",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 833333.31,
+    "median_p99_ms": 1.199,
+    "worst_max_ms": 1.463
+  },
+  {
+    "stage": "before",
+    "engine": "peridot-before",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 9629.27,
+    "median_p99_ms": 99.071,
+    "worst_max_ms": 107.903
+  },
+  {
+    "stage": "before",
+    "engine": "peridot-before",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1297016.88,
+    "median_p99_ms": 1.055,
+    "worst_max_ms": 9.935
+  },
+  {
+    "stage": "before",
+    "engine": "peridot-before",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 417014.19,
+    "median_p99_ms": 3.287,
+    "worst_max_ms": 14.583
+  },
+  {
+    "stage": "before",
+    "engine": "peridot-before",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1356852.12,
+    "median_p99_ms": 0.687,
+    "worst_max_ms": 4.607
+  },
+  {
+    "stage": "before",
+    "engine": "peridot-before",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 420344.69,
+    "median_p99_ms": 3.199,
+    "worst_max_ms": 17.999
+  },
+  {
+    "stage": "before",
+    "engine": "peridot-before",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1338688.12,
+    "median_p99_ms": 0.735,
+    "worst_max_ms": 10.207
+  },
+  {
+    "stage": "before",
+    "engine": "peridot-before",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 1329787.25,
+    "median_p99_ms": 2.087,
+    "worst_max_ms": 5.471
+  },
+  {
+    "stage": "before",
+    "engine": "redis",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 909090.94,
+    "median_p99_ms": 1.103,
+    "worst_max_ms": 1.359
+  },
+  {
+    "stage": "before",
+    "engine": "redis",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 121212.12,
+    "median_p99_ms": 10.999,
+    "worst_max_ms": 19.631
+  },
+  {
+    "stage": "before",
+    "engine": "redis",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1228501.25,
+    "median_p99_ms": 0.855,
+    "worst_max_ms": 13.279
+  },
+  {
+    "stage": "before",
+    "engine": "redis",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 694444.44,
+    "median_p99_ms": 1.487,
+    "worst_max_ms": 4.151
+  },
+  {
+    "stage": "before",
+    "engine": "redis",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1245330.0,
+    "median_p99_ms": 0.871,
+    "worst_max_ms": 1.415
+  },
+  {
+    "stage": "before",
+    "engine": "redis",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 661375.69,
+    "median_p99_ms": 1.647,
+    "worst_max_ms": 8.927
+  },
+  {
+    "stage": "before",
+    "engine": "redis",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1261034.12,
+    "median_p99_ms": 0.831,
+    "worst_max_ms": 1.903
+  },
+  {
+    "stage": "before",
+    "engine": "redis",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 1028806.56,
+    "median_p99_ms": 1.023,
+    "worst_max_ms": 3.583
+  },
+  {
+    "stage": "before-p1",
+    "engine": "peridot-before",
+    "policy": "everysec",
+    "pipeline": 1,
+    "operation": "GET",
+    "median_rps": 99552.02,
+    "median_p99_ms": 0.407,
+    "worst_max_ms": 1.775
+  },
+  {
+    "stage": "before-p1",
+    "engine": "peridot-before",
+    "policy": "everysec",
+    "pipeline": 1,
+    "operation": "SET",
+    "median_rps": 100060.03,
+    "median_p99_ms": 0.487,
+    "worst_max_ms": 14.895
+  },
+  {
+    "stage": "before-p1",
+    "engine": "peridot-before",
+    "policy": "off",
+    "pipeline": 1,
+    "operation": "GET",
+    "median_rps": 99354.2,
+    "median_p99_ms": 0.399,
+    "worst_max_ms": 1.375
+  },
+  {
+    "stage": "before-p1",
+    "engine": "peridot-before",
+    "policy": "off",
+    "pipeline": 1,
+    "operation": "SET",
+    "median_rps": 99980.01,
+    "median_p99_ms": 0.423,
+    "worst_max_ms": 5.607
+  },
+  {
+    "stage": "before-p1",
+    "engine": "redis",
+    "policy": "everysec",
+    "pipeline": 1,
+    "operation": "GET",
+    "median_rps": 105820.11,
+    "median_p99_ms": 0.495,
+    "worst_max_ms": 5.911
+  },
+  {
+    "stage": "before-p1",
+    "engine": "redis",
+    "policy": "everysec",
+    "pipeline": 1,
+    "operation": "SET",
+    "median_rps": 109433.14,
+    "median_p99_ms": 0.551,
+    "worst_max_ms": 3.359
+  },
+  {
+    "stage": "before-p1",
+    "engine": "redis",
+    "policy": "off",
+    "pipeline": 1,
+    "operation": "GET",
+    "median_rps": 106281.22,
+    "median_p99_ms": 0.439,
+    "worst_max_ms": 8.247
+  },
+  {
+    "stage": "before-p1",
+    "engine": "redis",
+    "policy": "off",
+    "pipeline": 1,
+    "operation": "SET",
+    "median_rps": 106951.87,
+    "median_p99_ms": 0.471,
+    "worst_max_ms": 6.599
+  },
+  {
+    "stage": "handoff",
+    "engine": "peridot-handoff",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 833333.31,
+    "median_p99_ms": 1.279,
+    "worst_max_ms": 1.791
+  },
+  {
+    "stage": "handoff",
+    "engine": "peridot-handoff",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 12531.33,
+    "median_p99_ms": 82.815,
+    "worst_max_ms": 100.031
+  },
+  {
+    "stage": "handoff",
+    "engine": "peridot-handoff",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1351351.38,
+    "median_p99_ms": 0.711,
+    "worst_max_ms": 2.623
+  },
+  {
+    "stage": "handoff",
+    "engine": "peridot-handoff",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 593119.81,
+    "median_p99_ms": 2.183,
+    "worst_max_ms": 12.999
+  },
+  {
+    "stage": "handoff",
+    "engine": "peridot-handoff",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1344086.0,
+    "median_p99_ms": 0.679,
+    "worst_max_ms": 2.071
+  },
+  {
+    "stage": "handoff",
+    "engine": "peridot-handoff",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 599880.0,
+    "median_p99_ms": 2.183,
+    "worst_max_ms": 4.495
+  },
+  {
+    "stage": "handoff",
+    "engine": "peridot-handoff",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1371742.12,
+    "median_p99_ms": 0.671,
+    "worst_max_ms": 2.247
+  },
+  {
+    "stage": "handoff",
+    "engine": "peridot-handoff",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 1344086.0,
+    "median_p99_ms": 1.991,
+    "worst_max_ms": 3.359
+  },
+  {
+    "stage": "handoff",
+    "engine": "redis",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 909090.94,
+    "median_p99_ms": 1.079,
+    "worst_max_ms": 1.607
+  },
+  {
+    "stage": "handoff",
+    "engine": "redis",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 134228.19,
+    "median_p99_ms": 12.287,
+    "worst_max_ms": 20.207
+  },
+  {
+    "stage": "handoff",
+    "engine": "redis",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1231527.12,
+    "median_p99_ms": 0.855,
+    "worst_max_ms": 2.439
+  },
+  {
+    "stage": "handoff",
+    "engine": "redis",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 689655.12,
+    "median_p99_ms": 1.479,
+    "worst_max_ms": 2.519
+  },
+  {
+    "stage": "handoff",
+    "engine": "redis",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1233045.62,
+    "median_p99_ms": 0.831,
+    "worst_max_ms": 1.191
+  },
+  {
+    "stage": "handoff",
+    "engine": "redis",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 687285.19,
+    "median_p99_ms": 1.495,
+    "worst_max_ms": 4.087
+  },
+  {
+    "stage": "handoff",
+    "engine": "redis",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1264222.5,
+    "median_p99_ms": 0.815,
+    "worst_max_ms": 1.231
+  },
+  {
+    "stage": "handoff",
+    "engine": "redis",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 1025641.0,
+    "median_p99_ms": 0.959,
+    "worst_max_ms": 1.359
+  },
+  {
+    "stage": "umpsc-pilot",
+    "engine": "peridot-umpsc",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 672947.56,
+    "median_p99_ms": 1.983,
+    "worst_max_ms": 9.175
+  },
+  {
+    "stage": "umpsc-pilot",
+    "engine": "peridot-umpsc",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 689655.12,
+    "median_p99_ms": 1.927,
+    "worst_max_ms": 3.455
+  },
+  {
+    "stage": "umpsc-pilot",
+    "engine": "redis",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 703234.88,
+    "median_p99_ms": 1.503,
+    "worst_max_ms": 4.047
+  },
+  {
+    "stage": "umpsc-pilot",
+    "engine": "redis",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 701754.44,
+    "median_p99_ms": 1.455,
+    "worst_max_ms": 4.263
+  },
+  {
+    "stage": "after",
+    "engine": "peridot-after",
+    "policy": "always",
+    "pipeline": 1,
+    "operation": "GET",
+    "median_rps": 100000.0,
+    "median_p99_ms": 0.423,
+    "worst_max_ms": 0.831
+  },
+  {
+    "stage": "after",
+    "engine": "peridot-after",
+    "policy": "always",
+    "pipeline": 1,
+    "operation": "SET",
+    "median_rps": 9905.89,
+    "median_p99_ms": 8.687,
+    "worst_max_ms": 32.559
+  },
+  {
+    "stage": "after",
+    "engine": "peridot-after",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 800000.0,
+    "median_p99_ms": 1.239,
+    "worst_max_ms": 1.583
+  },
+  {
+    "stage": "after",
+    "engine": "peridot-after",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 9564.8,
+    "median_p99_ms": 99.711,
+    "worst_max_ms": 114.431
+  },
+  {
+    "stage": "after",
+    "engine": "peridot-after",
+    "policy": "everysec",
+    "pipeline": 1,
+    "operation": "GET",
+    "median_rps": 99049.13,
+    "median_p99_ms": 0.447,
+    "worst_max_ms": 5.735
+  },
+  {
+    "stage": "after",
+    "engine": "peridot-after",
+    "policy": "everysec",
+    "pipeline": 1,
+    "operation": "SET",
+    "median_rps": 100371.37,
+    "median_p99_ms": 0.479,
+    "worst_max_ms": 15.311
+  },
+  {
+    "stage": "after",
+    "engine": "peridot-after",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1355013.62,
+    "median_p99_ms": 0.655,
+    "worst_max_ms": 10.639
+  },
+  {
+    "stage": "after",
+    "engine": "peridot-after",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 689655.12,
+    "median_p99_ms": 1.983,
+    "worst_max_ms": 11.695
+  },
+  {
+    "stage": "after",
+    "engine": "peridot-after",
+    "policy": "no",
+    "pipeline": 1,
+    "operation": "GET",
+    "median_rps": 99631.37,
+    "median_p99_ms": 0.407,
+    "worst_max_ms": 2.279
+  },
+  {
+    "stage": "after",
+    "engine": "peridot-after",
+    "policy": "no",
+    "pipeline": 1,
+    "operation": "SET",
+    "median_rps": 100796.3,
+    "median_p99_ms": 0.479,
+    "worst_max_ms": 70.143
+  },
+  {
+    "stage": "after",
+    "engine": "peridot-after",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1381215.5,
+    "median_p99_ms": 0.719,
+    "worst_max_ms": 3.959
+  },
+  {
+    "stage": "after",
+    "engine": "peridot-after",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 682593.81,
+    "median_p99_ms": 2.071,
+    "worst_max_ms": 19.983
+  },
+  {
+    "stage": "after",
+    "engine": "peridot-after",
+    "policy": "off",
+    "pipeline": 1,
+    "operation": "GET",
+    "median_rps": 99730.73,
+    "median_p99_ms": 0.399,
+    "worst_max_ms": 3.479
+  },
+  {
+    "stage": "after",
+    "engine": "peridot-after",
+    "policy": "off",
+    "pipeline": 1,
+    "operation": "SET",
+    "median_rps": 100040.02,
+    "median_p99_ms": 0.415,
+    "worst_max_ms": 2.087
+  },
+  {
+    "stage": "after",
+    "engine": "peridot-after",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1355013.62,
+    "median_p99_ms": 0.663,
+    "worst_max_ms": 2.151
+  },
+  {
+    "stage": "after",
+    "engine": "peridot-after",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 1356852.12,
+    "median_p99_ms": 2.063,
+    "worst_max_ms": 6.847
+  },
+  {
+    "stage": "after",
+    "engine": "redis",
+    "policy": "always",
+    "pipeline": 1,
+    "operation": "GET",
+    "median_rps": 109289.62,
+    "median_p99_ms": 0.471,
+    "worst_max_ms": 0.751
+  },
+  {
+    "stage": "after",
+    "engine": "redis",
+    "policy": "always",
+    "pipeline": 1,
+    "operation": "SET",
+    "median_rps": 8932.56,
+    "median_p99_ms": 7.711,
+    "worst_max_ms": 16.463
+  },
+  {
+    "stage": "after",
+    "engine": "redis",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1333333.38,
+    "median_p99_ms": 0.847,
+    "worst_max_ms": 0.911
+  },
+  {
+    "stage": "after",
+    "engine": "redis",
+    "policy": "always",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 139860.14,
+    "median_p99_ms": 6.903,
+    "worst_max_ms": 8.519
+  },
+  {
+    "stage": "after",
+    "engine": "redis",
+    "policy": "everysec",
+    "pipeline": 1,
+    "operation": "GET",
+    "median_rps": 108061.38,
+    "median_p99_ms": 0.439,
+    "worst_max_ms": 1.807
+  },
+  {
+    "stage": "after",
+    "engine": "redis",
+    "policy": "everysec",
+    "pipeline": 1,
+    "operation": "SET",
+    "median_rps": 110156.42,
+    "median_p99_ms": 0.551,
+    "worst_max_ms": 8.735
+  },
+  {
+    "stage": "after",
+    "engine": "redis",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1250000.0,
+    "median_p99_ms": 0.823,
+    "worst_max_ms": 1.175
+  },
+  {
+    "stage": "after",
+    "engine": "redis",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 686813.19,
+    "median_p99_ms": 1.479,
+    "worst_max_ms": 3.783
+  },
+  {
+    "stage": "after",
+    "engine": "redis",
+    "policy": "no",
+    "pipeline": 1,
+    "operation": "GET",
+    "median_rps": 107054.92,
+    "median_p99_ms": 0.423,
+    "worst_max_ms": 6.215
+  },
+  {
+    "stage": "after",
+    "engine": "redis",
+    "policy": "no",
+    "pipeline": 1,
+    "operation": "SET",
+    "median_rps": 109914.27,
+    "median_p99_ms": 0.551,
+    "worst_max_ms": 3.103
+  },
+  {
+    "stage": "after",
+    "engine": "redis",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1233045.62,
+    "median_p99_ms": 0.831,
+    "worst_max_ms": 1.615
+  },
+  {
+    "stage": "after",
+    "engine": "redis",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 686813.19,
+    "median_p99_ms": 1.503,
+    "worst_max_ms": 3.951
+  },
+  {
+    "stage": "after",
+    "engine": "redis",
+    "policy": "off",
+    "pipeline": 1,
+    "operation": "GET",
+    "median_rps": 107573.16,
+    "median_p99_ms": 0.455,
+    "worst_max_ms": 2.951
+  },
+  {
+    "stage": "after",
+    "engine": "redis",
+    "policy": "off",
+    "pipeline": 1,
+    "operation": "SET",
+    "median_rps": 107596.3,
+    "median_p99_ms": 0.471,
+    "worst_max_ms": 1.815
+  },
+  {
+    "stage": "after",
+    "engine": "redis",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "GET",
+    "median_rps": 1230012.25,
+    "median_p99_ms": 0.831,
+    "worst_max_ms": 1.367
+  },
+  {
+    "stage": "after",
+    "engine": "redis",
+    "policy": "off",
+    "pipeline": 16,
+    "operation": "SET",
+    "median_rps": 1011122.31,
+    "median_p99_ms": 0.975,
+    "worst_max_ms": 1.455
+  }
+]

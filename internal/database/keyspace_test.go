@@ -9,7 +9,7 @@ import (
 )
 
 func TestKeyspaceExpirationIndexAndAppendFailure(t *testing.T) {
-	for name, backend := range map[string]storage.Backend{"xsync": storage.NewXsync(), "dlht": storage.NewDLHT()} {
+	for name, backend := range map[string]storage.Backend{"xsync": storage.NewXsync()} {
 		t.Run(name, func(t *testing.T) {
 			p := &expirationPersistence{}
 			db := manualExpirationDB(t, backend, p)

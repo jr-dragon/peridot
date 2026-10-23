@@ -11,11 +11,11 @@ import (
 )
 
 type Get struct {
-	store storage.Store
+	store storage.KeyReader
 	l     *slog.Logger
 }
 
-func NewGet(store storage.Store) *Get {
+func NewGet(store storage.KeyReader) *Get {
 	return &Get{store: store, l: slog.Default().With(slog.String("component", "get"))}
 }
 

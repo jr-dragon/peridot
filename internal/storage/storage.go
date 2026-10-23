@@ -15,8 +15,8 @@ func New() Backend { return NewXsync() }
 
 // Entry holds an immutable value and its Unix millisecond expiration timestamp.
 // ExpiresAt == 0 means no expiration. Redis strings are represented by string;
-// other value types may be added by future commands. Mutable values must be
-// copied before publication and must never be modified after publication.
+// other Redis data types use immutable TypedValue implementations. Mutable
+// values must be copied before publication and never modified afterward.
 type Entry struct {
 	Value     any
 	ExpiresAt int64
@@ -34,31 +34,51 @@ type UpdateFunc func(current Entry, exists bool, now int64) (next Entry, keep bo
 // It must not mutate the entry or call back into the store.
 type ReadFunc func(Entry, bool, int64)
 
-// Store supports concurrent access, binary-safe keys, passive expiration, and
-// atomic read/modify/write operations. Implementations must preserve error
-// identity and must never delete a replacement value during passive expiration.
-type Store interface {
+// KeyReader observes whole values and their key expiration. Missing and expired
+// keys are absent. Read supplies the same clock snapshot used for expiration.
+type KeyReader interface {
 	Get(context.Context, string) (Entry, bool, error)
-	Update(context.Context, string, UpdateFunc) error
 	Read(context.Context, string, ReadFunc) error
+}
+
+// KeyUpdater atomically changes one immutable value, regardless of Redis type.
+// Conditional writes, numeric operations, key TTLs, collection operations and
+// hash field TTLs are evaluated by the caller inside the callback.
+type KeyUpdater interface {
+	Update(context.Context, string, UpdateFunc) error
+}
+
+// KeyDeleter removes keys as one indivisible operation.
+type KeyDeleter interface {
 	// DeleteKeys removes keys in one operation and counts only live, distinct keys.
 	DeleteKeys(context.Context, []string) (int64, error)
+}
+
+// KeyStore is the currently implemented, command-facing capability set.
+// Implementations preserve error identity and concurrent replacements during
+// passive expiration. Consumers should request the smallest interface they use.
+type KeyStore interface {
+	KeyReader
+	KeyUpdater
+	KeyDeleter
+}
+
+// Store describes the complete planned memory data boundary for standalone
+// Redis 8.10.2. It composes capabilities, not one method per Redis command.
+// Operations accept binary-safe keys and preserve errors. A context already
+// canceled before an operation begins prevents callback execution and mutation.
+// Cancellation during an operation must never leave a partial publication.
+// Xsync implements KeyStore today; its remaining methods panic("todo").
+// database.DB currently exposes KeyStore and coordinates persistence separately.
+type Store interface {
+	KeyStore
+	MultiKeyStore
+	KeyspaceStore
+	AtomicStore
+	MetadataStore
 }
 
 func expired(entry Entry, now int64) bool {
 	// Redis 8.10.2 expires a key strictly after its millisecond deadline.
 	return entry.ExpiresAt != 0 && now > entry.ExpiresAt
-}
-
-// Backend is a memory store with raw access for database coordination. Raw
-// methods neither expire entries nor invoke command callbacks. The owner must
-// exclude ordinary Store calls while coordinating durable mutations, and
-// exclude all mutations while collecting a consistent Snapshot.
-// Xsync and DLHT are the supported backends.
-type Backend interface {
-	Store
-	Load(string) (Entry, bool)
-	Put(string, Entry)
-	Delete(string)
-	Snapshot() map[string]Entry
 }

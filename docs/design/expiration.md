@@ -18,10 +18,15 @@ keys with expiration timestamps. Recovery seeds the index once. Mutations,
 passive expiration, and active expiration update it under its own mutex;
 removal swaps the last element into the removed slot. Index maintenance is O(1),
 with O(N) additional memory for N TTL keys. No per-cycle full-keyspace scan or
-snapshot is needed. Both Xsync and DLHT backends use the same coordinator.
-Ordinary key operations hold a shared database gate and a per-key lock stripe;
-different keys can proceed concurrently when AOF is disabled. Index updates
-complete before a key operation releases the gate. Non-TTL replacements skip
+snapshot is needed. The coordinator works through the storage backend interface.
+Live reads hold only the shared database gate and load immutable entries without
+a key stripe. Expired observations release that gate and reload under mutation
+coordination before deletion. With AOF disabled, coordinated updates and expired
+read rechecks use raw backend `Compute` instead of database key stripes. The
+callback updates the TTL index before returning its physical mutation, while the
+backend still excludes same-key updates. It must not call raw Put/Delete and
+reenter that bucket lock. Index updates and value publication complete before a
+key operation releases the shared database gate. Non-TTL replacements skip
 index maintenance. An expiration sample holds the exclusive database gate, so
 it observes complete value/index updates and cannot remove a concurrent replacement.
 

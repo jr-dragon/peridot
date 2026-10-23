@@ -4,7 +4,6 @@ package database
 import (
 	"context"
 	"errors"
-	"hash/maphash"
 	"log/slog"
 	"sync"
 	"sync/atomic"
@@ -13,6 +12,7 @@ import (
 	"github.com/jr-dragon/peridot/internal/data"
 	"github.com/jr-dragon/peridot/internal/liberr"
 	"github.com/jr-dragon/peridot/internal/storage"
+	"golang.org/x/sys/cpu"
 )
 
 var (
@@ -50,14 +50,16 @@ type concurrentRewriter interface {
 }
 
 // DB exclusively owns its backend. mu excludes key operations from checkpoints,
-// multi-key deletion, expiration cycles, and close. AOF additionally serializes
-// key operations to preserve append/publication order across different keys.
+// multi-key deletion, expiration cycles, and close. Persistence without an
+// explicit per-key coordination capability also serializes key operations.
 type DB struct {
-	mu             sync.RWMutex
-	keys           [256]sync.Mutex
-	seed           maphash.Seed
+	mu sync.RWMutex
+	// Keep the shared gate's reader count away from frequently read fields.
+	// Removing the old stripe array otherwise puts them on the same cache line.
+	_              cpu.CacheLinePad
 	ordered        bool
 	store          storage.Backend
+	direct         storage.KeyStore
 	persistence    Persistence
 	now            func() time.Time
 	closed         bool
@@ -76,14 +78,25 @@ type DB struct {
 	expiration     *activeExpiration
 }
 
+var _ storage.KeyStore = (*DB)(nil)
+
 // Option configures a database before recovery or concurrent access.
 type Option func(*DB)
 
-// WithClock supplies the clock used for durable expiration and snapshots.
-func WithClock(now func() time.Time) Option { return func(d *DB) { d.now = now } }
+// WithClock supplies the clock used for expiration, callbacks and snapshots.
+func WithClock(now func() time.Time) Option {
+	return func(d *DB) {
+		d.now = now
+		// Command-facing backends own their clocks. Use raw coordination so
+		// memory-only operations also honor the database's clock override.
+		d.direct = nil
+	}
+}
 
 func New(store storage.Backend, persistence Persistence, options ...Option) *DB {
-	d := &DB{store: store, persistence: persistence, now: time.Now, seed: maphash.MakeSeed(), ordered: persistence != nil}
+	d := &DB{store: store, persistence: persistence, now: time.Now, ordered: persistence != nil}
+	// A raw backend need not implement the optional memory-only command fast path.
+	d.direct, _ = store.(storage.KeyStore)
 	// Unknown persistence implementations retain the conservative global order.
 	// RDB-only engines still participate in checkpoints without serializing keys.
 	if mode, ok := persistence.(interface{ RequiresOrderedMutations() bool }); ok {
@@ -118,27 +131,23 @@ func New(store storage.Backend, persistence Persistence, options ...Option) *DB 
 }
 
 type keyAccess struct {
-	db  *DB
-	key *sync.Mutex
+	db *DB
 }
 
-func (s *DB) lockAccess(key string) keyAccess {
+func (s *DB) lockAccess() keyAccess {
 	if s.ordered {
 		s.mu.Lock()
 		return keyAccess{db: s}
 	}
 	s.mu.RLock()
-	lock := &s.keys[maphash.String(s.seed, key)%uint64(len(s.keys))]
-	lock.Lock()
-	return keyAccess{db: s, key: lock}
+	return keyAccess{db: s}
 }
 
 func (a keyAccess) unlock() {
-	if a.key == nil {
+	if a.db.ordered {
 		a.db.mu.Unlock()
 		return
 	}
-	a.key.Unlock()
 	a.db.mu.RUnlock()
 }
 
@@ -161,35 +170,48 @@ func (s *DB) WriteError() error {
 }
 
 func (s *DB) Get(ctx context.Context, key string) (storage.Entry, bool, error) {
-	access := s.lockAccess(key)
-	defer access.unlock()
+	s.mu.RLock()
 	if s.closed {
+		s.mu.RUnlock()
 		return storage.Entry{}, false, ErrClosed
 	}
 	if err := ctx.Err(); err != nil {
+		s.mu.RUnlock()
 		return storage.Entry{}, false, err
 	}
-	if s.persistence == nil && s.expiration == nil {
-		return s.store.Get(ctx, key)
+	if s.persistence == nil && s.expiration == nil && s.direct != nil {
+		defer s.mu.RUnlock()
+		return s.direct.Get(ctx, key)
 	}
 	entry, exists := s.store.Load(key)
-	if exists && expired(entry, s.now().UnixMilli()) {
-		if err := s.expireKey(key); err != nil {
-			return storage.Entry{}, false, err
-		}
-		return storage.Entry{}, false, nil
+	if !exists || !expired(entry, s.now().UnixMilli()) {
+		s.mu.RUnlock()
+		return entry, exists, nil
 	}
-	return entry, exists, nil
+	s.mu.RUnlock()
+	return s.getExpired(ctx, key)
+}
+
+// getExpired upgrades to mutation coordination and reloads the key. A writer
+// may replace the expired observation while the shared gate is released.
+func (s *DB) getExpired(ctx context.Context, key string) (storage.Entry, bool, error) {
+	var entry storage.Entry
+	var exists bool
+	err := s.readExpired(ctx, key, func(e storage.Entry, ok bool, _ int64) { entry, exists = e, ok })
+	return entry, exists, err
 }
 
 func (s *DB) Update(ctx context.Context, key string, update storage.UpdateFunc) error {
-	access := s.lockAccess(key)
+	access := s.lockAccess()
 	defer access.unlock()
 	if s.closed {
 		return ErrClosed
 	}
-	if s.persistence == nil && s.expiration == nil {
-		return s.store.Update(ctx, key, update)
+	if s.persistence == nil && s.expiration == nil && s.direct != nil {
+		return s.direct.Update(ctx, key, update)
+	}
+	if !s.ordered {
+		return s.updateComputed(ctx, key, update)
 	}
 	if s.persistence != nil {
 		if err := s.persistence.Err(); err != nil {
@@ -537,7 +559,32 @@ func (s *DB) Close() error {
 // Read shares Get's read-only persistence policy and supplies an expiration
 // snapshot, without treating a TTL lookup as a write or increasing dirty state.
 func (s *DB) Read(ctx context.Context, key string, read storage.ReadFunc) error {
-	access := s.lockAccess(key)
+	s.mu.RLock()
+	if s.closed {
+		s.mu.RUnlock()
+		return ErrClosed
+	}
+	if err := ctx.Err(); err != nil {
+		s.mu.RUnlock()
+		return err
+	}
+	if s.persistence == nil && s.expiration == nil && s.direct != nil {
+		defer s.mu.RUnlock()
+		return s.direct.Read(ctx, key, read)
+	}
+	entry, exists := s.store.Load(key)
+	now := s.now().UnixMilli()
+	if !exists || !expired(entry, now) {
+		defer s.mu.RUnlock()
+		read(entry, exists, now)
+		return nil
+	}
+	s.mu.RUnlock()
+	return s.readExpired(ctx, key, read)
+}
+
+func (s *DB) readExpired(ctx context.Context, key string, read storage.ReadFunc) error {
+	access := s.lockAccess()
 	defer access.unlock()
 	if s.closed {
 		return ErrClosed
@@ -545,8 +592,8 @@ func (s *DB) Read(ctx context.Context, key string, read storage.ReadFunc) error 
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if s.persistence == nil && s.expiration == nil {
-		return s.store.Read(ctx, key, read)
+	if !s.ordered {
+		return s.readComputed(ctx, key, read)
 	}
 	now := s.now().UnixMilli()
 	entry, exists := s.store.Load(key)
@@ -571,8 +618,8 @@ func (s *DB) DeleteKeys(ctx context.Context, keys []string) (int64, error) {
 	if err := ctx.Err(); err != nil {
 		return 0, err
 	}
-	if s.persistence == nil && s.expiration == nil {
-		return s.store.DeleteKeys(ctx, keys)
+	if s.persistence == nil && s.expiration == nil && s.direct != nil {
+		return s.direct.DeleteKeys(ctx, keys)
 	}
 	if s.persistence != nil {
 		if err := s.persistence.Err(); err != nil {

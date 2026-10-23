@@ -1,0 +1,46 @@
+[
+  {
+    "engine": "peridot-umpsc",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 672947.56,
+    "avg_latency_ms": 1.113,
+    "p50_latency_ms": 1.071,
+    "p99_latency_ms": 1.983,
+    "max_latency_ms": 5.815
+  },
+  {
+    "engine": "peridot-umpsc",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 689655.12,
+    "avg_latency_ms": 1.088,
+    "p50_latency_ms": 1.047,
+    "p99_latency_ms": 1.927,
+    "max_latency_ms": 2.719
+  },
+  {
+    "engine": "redis",
+    "policy": "everysec",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 703234.88,
+    "avg_latency_ms": 1.05,
+    "p50_latency_ms": 1.039,
+    "p99_latency_ms": 1.503,
+    "max_latency_ms": 2.327
+  },
+  {
+    "engine": "redis",
+    "policy": "no",
+    "pipeline": 16,
+    "operation": "SET",
+    "rps": 701754.44,
+    "avg_latency_ms": 1.055,
+    "p50_latency_ms": 1.047,
+    "p99_latency_ms": 1.455,
+    "max_latency_ms": 3.319
+  }
+]

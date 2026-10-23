@@ -10,7 +10,6 @@ import (
 
 	"github.com/jr-dragon/peridot/internal/data"
 	"github.com/jr-dragon/peridot/internal/service/cmd"
-	"github.com/jr-dragon/peridot/internal/storage"
 	"github.com/jr-dragon/peridot/pkg/resp"
 )
 
@@ -34,7 +33,7 @@ func TestSnapshotThresholdAgainstRedis(t *testing.T) {
 	config := data.DefaultConfig()
 	config.Dir = t.TempDir()
 	config.Save = []data.SaveRule{{Seconds: 1, Changes: 2}}
-	db := openPersistenceDB(t, config, storage.New)
+	db := openPersistenceDB(t, config)
 	_, peer := startRESPPipe(t, NewHandler(cmd.NewCommandsFromConfig(config, db)))
 	reader := resp.NewReader(peer)
 	for _, args := range [][]string{{"SET", "key", "value"}, {"SET", "key", "value", "NX"}, {"SET", "key", "value"}} {
@@ -82,7 +81,7 @@ func TestPingSnapshotFailureAgainstRedis(t *testing.T) {
 			} else {
 				config.Save = []data.SaveRule{{Seconds: 3600, Changes: 1}}
 			}
-			db := openPersistenceDB(t, config, storage.New)
+			db := openPersistenceDB(t, config)
 			_, peer := startRESPPipe(t, NewHandler(cmd.NewCommandsFromConfig(config, db)))
 			reader := resp.NewReader(peer)
 			compare := func(args ...string) string {
@@ -183,7 +182,7 @@ func TestDisabledAOFRewriteAgainstRedis(t *testing.T) {
 			config.Dir = t.TempDir()
 			config.Save = nil
 			config.AOFUseRDBPreamble = preamble
-			db := openPersistenceDB(t, config, storage.New)
+			db := openPersistenceDB(t, config)
 			_, peer := startRESPPipe(t, NewHandler(cmd.NewCommandsFromConfig(config, db)))
 			reader := resp.NewReader(peer)
 			compare := func(args ...string) {

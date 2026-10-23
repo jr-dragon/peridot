@@ -92,7 +92,7 @@ func TestExpirationSamplingThreshold(t *testing.T) {
 }
 
 func TestExpirationRepeatsAndSamplesWithoutReplacement(t *testing.T) {
-	for _, backend := range []storage.Backend{storage.NewXsync(), storage.NewDLHT()} {
+	for _, backend := range []storage.Backend{storage.NewXsync()} {
 		t.Run(fmt.Sprintf("%T", backend), func(t *testing.T) {
 			for i := range 201 {
 				backend.Put(fmt.Sprint(i), storage.Entry{Value: "value", ExpiresAt: 999})
@@ -124,7 +124,7 @@ func TestExpirationRepeatsAndSamplesWithoutReplacement(t *testing.T) {
 }
 
 func TestExpirationIndexTracksMutationsAndBoundary(t *testing.T) {
-	for _, backend := range []storage.Backend{storage.NewXsync(), storage.NewDLHT()} {
+	for _, backend := range []storage.Backend{storage.NewXsync()} {
 		t.Run(fmt.Sprintf("%T", backend), func(t *testing.T) {
 			db := manualExpirationDB(t, backend, nil)
 			key := "binary\x00\xff"
@@ -340,7 +340,7 @@ func TestExpirationWorkerFrequencyAndClose(t *testing.T) {
 }
 
 func TestExpirationConcurrentReplacement(t *testing.T) {
-	for _, backend := range []storage.Backend{storage.NewXsync(), storage.NewDLHT()} {
+	for _, backend := range []storage.Backend{storage.NewXsync()} {
 		t.Run(fmt.Sprintf("%T", backend), func(t *testing.T) {
 			db := manualExpirationDB(t, backend, nil)
 			var clock atomic.Int64
@@ -440,7 +440,7 @@ func TestExpirationTriggersSnapshot(t *testing.T) {
 }
 
 func TestActiveExpirationContinuesAfterAOFFailure(t *testing.T) {
-	for name, backend := range map[string]storage.Backend{"xsync": storage.NewXsync(), "dlht": storage.NewDLHT()} {
+	for name, backend := range map[string]storage.Backend{"xsync": storage.NewXsync()} {
 		t.Run(name, func(t *testing.T) {
 			p := &expirationPersistence{}
 			db := manualExpirationDB(t, backend, p)

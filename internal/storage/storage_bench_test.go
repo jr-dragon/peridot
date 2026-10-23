@@ -10,10 +10,10 @@ import (
 	"testing"
 )
 
-// BenchmarkStorage measures the Store API, including its synchronization and
+// BenchmarkStorage measures the KeyStore API, including its synchronization and
 // time snapshots, without RESP parsing, network I/O, expiration, or command
 // logging. SET means an unconditional Update that overwrites an existing key.
-// Both backends use the same prepopulated keys and immutable 128-byte payload.
+// Each case uses prepopulated keys and an immutable 128-byte payload.
 // Uniform keys cover a bounded working set; HotKey measures same-key contention.
 //
 // Each case starts exactly workers goroutines, independent of GOMAXPROCS. The
@@ -27,17 +27,9 @@ import (
 //
 // Use -cpu to control GOMAXPROCS independently of the worker count. Results are
 // aggregate throughput: ns/op is elapsed time / total operations across workers,
-// not the latency of an individual request. DLHT measures the current adapter
-// with its per-shard read/write locks, rather than the upstream map in isolation.
+// not the latency of an individual request.
 func BenchmarkStorage(b *testing.B) {
 	b.Logf("GOMAXPROCS=%d; payload=128B; SET=overwrite; no expiration", runtime.GOMAXPROCS(0))
-	backends := []struct {
-		name string
-		new  func() Store
-	}{
-		{"Xsync", func() Store { return NewXsync() }},
-		{"DLHT", func() Store { return NewDLHT() }},
-	}
 	workloads := []struct {
 		name        string
 		readPercent int
@@ -54,23 +46,19 @@ func BenchmarkStorage(b *testing.B) {
 		{"Uniform", 1 << 16},
 		{"HotKey", 1},
 	}
-	// Run matching backend cases next to each other to reduce order-dependent
-	// thermal and system-load drift across the comparison.
 	for _, workload := range workloads {
 		for _, keySet := range keySets {
 			for _, workers := range []int{1, 2, 4, 8, 16, 32} {
-				for _, backend := range backends {
-					name := fmt.Sprintf("%s/%s/%s/workers=%d", backend.name, workload.name, keySet.name, workers)
-					b.Run(name, func(b *testing.B) {
-						benchmarkStore(b, backend.new(), keySet.count, workers, workload.readPercent)
-					})
-				}
+				name := fmt.Sprintf("Xsync/%s/%s/workers=%d", workload.name, keySet.name, workers)
+				b.Run(name, func(b *testing.B) {
+					benchmarkStore(b, NewXsync(), keySet.count, workers, workload.readPercent)
+				})
 			}
 		}
 	}
 }
 
-func benchmarkStore(b *testing.B, store Store, keyCount, workers, readPercent int) {
+func benchmarkStore(b *testing.B, store KeyStore, keyCount, workers, readPercent int) {
 	b.Helper()
 	b.StopTimer()
 	ctx := context.Background()
@@ -106,7 +94,7 @@ func benchmarkStore(b *testing.B, store Store, keyCount, workers, readPercent in
 			var res result
 			defer func() { results[worker] = res }()
 			// Nonzero, independent xorshift64 streams; no shared RNG or atomic
-			// counter can become the bottleneck instead of the Store itself.
+			// counter can become the bottleneck instead of the store itself.
 			state := uint64(worker+1) * 0x9e3779b97f4a7c15
 			phase := worker * 37 % 100
 			ready.Done()

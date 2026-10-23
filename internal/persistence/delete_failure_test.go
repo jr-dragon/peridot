@@ -35,7 +35,6 @@ func (f *boundedAppendFile) Write(p []byte) (int, error) {
 func TestMultiKeyDeleteFailureIsAtomic(t *testing.T) {
 	for name, backend := range map[string]func() storage.Backend{
 		"xsync": func() storage.Backend { return storage.NewXsync() },
-		"dlht":  func() storage.Backend { return storage.NewDLHT() },
 	} {
 		for _, policy := range []string{"always", "everysec", "no"} {
 			t.Run(name+"/"+policy, func(t *testing.T) {

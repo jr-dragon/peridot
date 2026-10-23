@@ -7,18 +7,28 @@ follows the [official persistence documentation](https://redis.io/docs/latest/op
 RDB is a point-in-time snapshot; multipart AOF consists of an optional base,
 ordered incremental command files, and an atomically replaced manifest.
 
-Working data remains in either the Xsync or DLHT backend. Persistence is independent
-of that choice. `internal/database.DB` coordinates mutations and snapshots;
+Working data remains in the Xsync memory backend, accessed through the replaceable
+`storage.Backend` interface. Persistence is independent of the backend implementation.
+`internal/database.DB` coordinates mutations and snapshots;
 `internal/persistence.Engine` owns recovery, RDB snapshots, multipart AOF, and locks.
 Wire codecs remain separate from command execution and the memory representation.
 No new dependencies or project-owned CGO code are required.
 
-Ordinary key operations share a database gate and use 256 key lock stripes.
-RDB-only persistence permits different stripes to proceed concurrently; active
+Ordinary key operations share a database gate. Coordinated updates use
+raw backend `Compute` for single-key exclusion, without database key stripes.
+The shared gate is separated from frequently read database fields with an
+architecture-sized cache-line pad, avoiding false sharing after stripe removal.
+Live reads use concurrent backend loads without a stripe, including when AOF is
+enabled. Expired observations reload under mutation coordination before deleting.
+Both AOF and RDB persistence permit independent backend buckets to proceed concurrently; active
 expiration maintains its index under a separate mutex, and dirty accounting is
 atomic. Snapshots, multi-key deletion, expiration samples, and close take the
-exclusive gate. AOF-enabled and unknown persistence implementations retain
-global mutation ordering so append and memory publication cannot be reordered.
+exclusive gate. AOF updates hold the backend's Compute bucket lock until append
+completes, preserving same-key order and append-before-publication. Different
+keys commute; their memory publications need not follow their AOF record order.
+Unknown persistence implementations retain global mutation ordering and the
+original Load/Append/Put path. Raw Compute remains a memory primitive; durability
+comes from the persistence call inside its callback.
 
 The supported dataset is binary-safe string keys and values in database zero,
 including absolute millisecond expiration. Other databases, collection types,
@@ -107,10 +117,42 @@ Successful same-value replacements also append; conditional no-ops
 explicitly return `storage.ErrUnchanged` and do not append. Existing fsync
 policies are preserved:
 
-- `always`: sync each mutation before acknowledgment.
+- `always`: sync the batch containing each mutation before acknowledgment.
 - `everysec` (default): write before acknowledgment, sync pending data in a worker.
   Slow storage can extend the loss window beyond one second.
 - `no`: write immediately and leave ordinary flushing to the operating system.
+
+Concurrent appenders submit resolved mutations to the existing xsync UMPSCQueue.
+One consumer encodes and writes batches of at most 256 requests or approximately
+256 KiB (a single larger record is kept intact). It drains already reserved
+requests without a batching timer. Each synchronous caller waits for its own
+batch result before memory publication; `always` also waits for Sync. Same-key
+ordering still comes from the caller's backend bucket lock. The consumer never
+accesses the backend, so it cannot wait on a bucket held by a producer.
+
+Encoding copies binary-safe arguments directly into a reusable RESP buffer
+without constructing intermediate RESP values. Buffers larger than 64 KiB are
+discarded after writing. Requests are pooled and their payload references cleared
+before completion, because queue segments can retain request pointers. The queue
+adds a writer goroutine and segment storage: the first enqueue allocates two
+4,096-slot segments, approximately 192 KiB for pointer and WaitGroup slots on
+this platform, before request, buffer, and pool overhead. There is at most one
+queued request per synchronous in-flight persistence caller; the implementation
+does not acknowledge early to accumulate an unlimited asynchronous backlog.
+
+A partial write or failed sync completes affected and queued requests with the
+persistence failure and prevents publication. Each completed request retains its
+own result, so a later failure cannot change an earlier successful result.
+Rotation waits for active I/O, with mutations excluded by the database gate.
+Close first rejects new submissions, places a sentinel after all accepted
+producers, and joins the consumer before closing its descriptor. Background
+`everysec` Sync can still overlap ordinary appends.
+Engine status checks release their own gate before waiting on the AOF gate, so a
+contended append cannot serialize unrelated keys through a nested status lock.
+
+This batching preserves the existing memory fast paths but does not remove
+same-key or same-bucket exclusion. A hot key, a single connection, or slow disk
+can still limit batch size and throughput, especially with `always`.
 
 All policies sync newly created files and their directory entries, manifest
 publication, rewrite completion, and final shutdown. Append or sync failure
@@ -194,7 +236,7 @@ go build -o ./bin/peridot-server ./cmd/server
 
 The differential suite requires exactly Redis 8.10.2, starts isolated reference
 processes, and transfers complete RDB or manifest-referenced file sets without
-flattening them. For both memory backends and both base formats it verifies
+flattening them. With the Xsync backend and both base formats it verifies
 Redis → Peridot → Redis → Peridot, including binary/empty data, Redis integer and
 LZF encodings, absolute expiry, deletion, post-base mutations, rewrite, and
 restart. Unit tests cover missing/corrupt files, checksum and LZF validation,

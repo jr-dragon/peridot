@@ -100,23 +100,27 @@ func (e *Engine) Restore() map[string]storage.Entry {
 }
 func (e *Engine) SnapshotRules() []data.SaveRule { return slices.Clone(e.rules) }
 
-// RequiresOrderedMutations keeps AOF appends and memory publication in one
-// database-wide order. RDB-only snapshots use the exclusive checkpoint gate.
-func (e *Engine) RequiresOrderedMutations() bool { return e.aof != nil }
+// RequiresOrderedMutations permits atomic per-key updates with either AOF or
+// RDB. Appends complete before publication; checkpoints retain the database gate.
+func (e *Engine) RequiresOrderedMutations() bool { return false }
 
 func (e *Engine) Err() error {
 	e.mu.Lock()
-	defer e.mu.Unlock()
 	if e.closed {
+		e.mu.Unlock()
 		return database.ErrClosed
 	}
+	saveFailure := e.saveFailure
+	e.mu.Unlock()
+	// Never hold the engine gate while waiting for the append gate: otherwise
+	// one status check can serialize all independent key computations.
 	if e.aof != nil {
 		if err := e.aof.Err(); err != nil {
 			return err
 		}
 	}
-	if e.stopWrites && len(e.rules) > 0 && e.saveFailure != nil {
-		return errors.Join(database.ErrSnapshotFailed, e.saveFailure)
+	if e.stopWrites && len(e.rules) > 0 && saveFailure != nil {
+		return errors.Join(database.ErrSnapshotFailed, saveFailure)
 	}
 	return nil
 }

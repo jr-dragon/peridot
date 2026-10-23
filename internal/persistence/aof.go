@@ -34,19 +34,31 @@ type appendFile interface {
 // supplies a consistent snapshot for rewrite.
 type AOF struct {
 	// syncMu keeps the descriptor alive across background sync, rewrite, and
-	// close. Acquire it before mu; appends only need mu and can proceed during sync.
+	// close. Acquire it before submitMu and mu; appends can proceed during sync.
 	syncMu    sync.Mutex
 	mu        sync.Mutex
 	file      appendFile
 	lock      *os.File
 	path      string
 	failure   error
+	closing   bool
 	closed    bool
 	recovered map[string]storage.Entry
 	policy    string
 	dirty     bool
 	stop      chan struct{}
 	done      chan struct{}
+
+	// submitMu orders accepted producers before the close sentinel. A single
+	// consumer owns batch I/O; callers wait for their own immutable result.
+	// appended is reserved for descriptor barriers such as rotation.
+	appended  *sync.Cond
+	writing   bool
+	submitMu  sync.RWMutex
+	queue     *appendQueue
+	pending   []byte
+	sequence  uint64
+	committed uint64
 }
 
 // OpenAOF validates a single-file AOF and prepares its recovered state.
@@ -185,11 +197,16 @@ func (s *AOF) Restore() map[string]storage.Entry {
 func (s *AOF) Err() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if s.closed {
+	if s.closed || s.closing {
 		return ErrAOFClosed
 	}
 	return classifyAOFFailure(s.failure)
 }
+
+// RequiresOrderedMutations allows the database's atomic per-key computations.
+// Different keys commute; same-key appends remain ordered by the backend lock,
+// and the database gate still excludes checkpoints and multi-key operations.
+func (s *AOF) RequiresOrderedMutations() bool { return false }
 
 func classifyAOFFailure(err error) error {
 	if err == nil {
@@ -198,63 +215,36 @@ func classifyAOFFailure(err error) error {
 	return errors.Join(database.ErrAOFFailed, err)
 }
 
-// Append writes a resolved mutation before publication, syncing according to policy.
+// Append waits for the single writer to persist its resolved mutation.
 func (s *AOF) Append(key string, next storage.Entry, keep bool) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return ErrAOFClosed
-	}
-	var record []byte
-	if keep {
-		value, ok := next.Value.(string)
-		if !ok {
-			return errors.New("aof: unsupported value type")
-		}
-		record = aof.Replacement(key, value, next.ExpiresAt)
-	} else {
-		record = aof.Encode("DEL", key)
-	}
-	return classifyAOFFailure(s.append(record))
+	return s.submit(key, next, keep, nil, false)
 }
 
-// AppendDelete uses one RESP command so recovery can never replay a prefix of
-// a multi-key DEL as a complete deletion of only some keys.
 func (s *AOF) AppendDelete(keys []string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return ErrAOFClosed
-	}
-	if len(keys) == 0 {
-		return nil
-	}
-	args := append([]string{"DEL"}, keys...)
-	return classifyAOFFailure(s.append(aof.Encode(args...)))
+	return s.submit("", storage.Entry{}, false, keys, true)
 }
 
-// append is called only under mu. A partial write or failed sync makes later
-// appends unsafe; reads of live entries may continue until persistence closes.
-func (s *AOF) append(record []byte) error {
-	if s.failure != nil {
-		return s.failure
-	}
+// writeBatch owns the descriptor until writing is cleared under mu. Background
+// everysec Sync may overlap Write, but rotation and close must wait for it.
+func (s *AOF) writeBatch(record []byte) error {
 	if n, err := s.file.Write(record); err != nil || n != len(record) {
 		if err == nil {
 			err = io.ErrShortWrite
 		}
-		s.failure = fmt.Errorf("append AOF: %w", err)
-		return s.failure
+		return fmt.Errorf("append AOF: %w", err)
 	}
 	if s.policy == "always" {
 		if err := s.file.Sync(); err != nil {
-			s.failure = fmt.Errorf("sync AOF: %w", err)
-			return s.failure
+			return fmt.Errorf("sync AOF: %w", err)
 		}
-	} else {
-		s.dirty = true
 	}
 	return nil
+}
+
+func (s *AOF) waitAppendLocked() {
+	for s.writing {
+		s.appended.Wait()
+	}
 }
 
 // Rewrite replaces the AOF using a live snapshot supplied by the database.
@@ -264,6 +254,7 @@ func (s *AOF) Rewrite(ctx context.Context, snapshot map[string]storage.Entry) er
 	defer s.syncMu.Unlock()
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	s.waitAppendLocked()
 	if s.closed {
 		return ErrAOFClosed
 	}
@@ -327,7 +318,6 @@ func (s *AOF) Rewrite(ctx context.Context, snapshot map[string]storage.Entry) er
 
 // Close synchronizes and closes the log, then releases its file lock.
 func (s *AOF) Close() error {
-	// Join the worker only after releasing locks it may still need.
 	defer func() {
 		if s.done != nil {
 			<-s.done
@@ -335,12 +325,30 @@ func (s *AOF) Close() error {
 	}()
 	s.syncMu.Lock()
 	defer s.syncMu.Unlock()
+	s.submitMu.Lock()
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	if s.closed {
+		s.mu.Unlock()
+		s.submitMu.Unlock()
 		return nil
 	}
+	s.closing = true
+	q := s.queue
+	s.mu.Unlock()
+	if q != nil {
+		q.count.Add(1)
+		q.work.Enqueue(nil)
+	}
+	s.submitMu.Unlock()
+	if q != nil {
+		<-q.done
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.closed = true
+	if s.appended != nil {
+		s.appended.Broadcast()
+	}
 	if s.stop != nil {
 		close(s.stop)
 	}
